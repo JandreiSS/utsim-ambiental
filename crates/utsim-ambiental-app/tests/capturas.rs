@@ -64,6 +64,16 @@ fn fabrica_do_exemplo() {
         assert!(Instant::now() < limite, "a simulação não terminou a tempo");
         std::thread::sleep(Duration::from_millis(50));
     }
+    // Uma tarifa com pico no meio do turno e demanda contratada.
+    {
+        let p = app.projeto.as_mut().unwrap();
+        let mut t = utsim_ambiental_core::formato::Tariff::inicial();
+        t.peak.from = "10:00".into();
+        t.peak.to = "12:00".into();
+        t.contracted_kw = Some(60.0);
+        p.lateral.environment.tariff = Some(t);
+        p.recalcular();
+    }
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_fabrica");
     app.fabrica.de_onde_veio = Some("estufa".into());

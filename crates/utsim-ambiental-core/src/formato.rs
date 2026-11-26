@@ -537,7 +537,31 @@ pub struct Tariff {
     pub price_kwh_peak: Option<f64>,
     pub price_kwh_off_peak: Option<f64>,
     pub price_kw: Option<f64>,
+    /// Preço de cada kW acima da demanda contratada (ultrapassagem).
+    #[serde(default)]
+    pub price_kw_overrun: Option<f64>,
     pub source: String,
+}
+
+impl Tariff {
+    /// A tarifa de partida: pico das 18:00 às 21:00 em dias úteis, intervalo de 15 minutos,
+    /// todos os preços a definir.
+    pub fn inicial() -> Tariff {
+        Tariff {
+            peak: Peak {
+                from: "18:00".into(),
+                to: "21:00".into(),
+                weekdays_only: true,
+            },
+            demand_interval_min: 15,
+            contracted_kw: None,
+            price_kwh_peak: None,
+            price_kwh_off_peak: None,
+            price_kw: None,
+            price_kw_overrun: None,
+            source: A_DEFINIR.into(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

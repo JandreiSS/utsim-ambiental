@@ -220,3 +220,34 @@ rel-potencia_media = Puissance moyenne de l'usine (kW), première réplication
 rel-fatores = Facteurs et sources
 rel-a_definir = à définir
 rel-sem_fatores = Aucun facteur enregistré : aucun chiffre d'émission dans ce rapport.
+
+## AM4: demanda, pico e tarifa
+
+fat-tarifa = Tarif d'énergie
+fat-tarifa_explica = Heures de pointe, puissance souscrite et prix : tous saisis par vous, sans valeur par défaut. Surcoûts, taxes et énergie réactive sont exclus.
+fat-usar_tarifa = Utiliser un tarif dans ce modèle
+fat-horario_pico = Heures de pointe
+fat-dias_uteis = jours ouvrés seulement (le 1er jour est lundi)
+fat-intervalo_demanda = Intervalle de demande
+fat-contratada = Puissance souscrite (kW)
+fat-preco_pico = Prix du kWh en pointe
+fat-preco_fora = Prix du kWh hors pointe
+fat-preco_kw = Prix du kW de puissance
+fat-preco_ultra = Prix du kW de dépassement
+fat-fonte_tarifa = Source du tarif
+fab-demanda = Puissance et tarif
+fab-demanda_max = Puissance maximale
+fab-demanda_pico = Puissance en pointe
+fab-sem_pico_na_janela = la fenêtre ne passe pas par la pointe
+fab-energia_pico = Énergie en pointe
+fab-fator_de_carga = Facteur de charge
+fab-conta_energia = Facture d'énergie simulée
+fab-conta_explica = Facture de la fenêtre simulée : énergie en pointe et hors pointe, la puissance (souscrite ou mesurée, la plus grande) et le dépassement, comme si la fenêtre était une période de facturation.
+fab-falta_preco = prix manquant
+fab-falta_preco_dica = Pas de facture : il manque { $precos }. Renseignez-les dans l'écran Facteurs.
+fab-contratada = souscrite { $kw } kW
+rel-parcela_pico = Part de l'énergie en pointe
+rel-parcela_fora = Part de l'énergie hors pointe
+rel-parcela_demanda = Part de la puissance
+rel-parcela_ultra = Part du dépassement
+rel-tarifa_fonte = Pointe de { $de } à { $ate }, intervalle de { $min } minutes. Source du tarif : { $fonte }.

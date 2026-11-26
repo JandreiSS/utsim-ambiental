@@ -252,8 +252,118 @@ pub fn ui(ui: &mut egui::Ui, p: &mut Projeto) -> Option<(String, bool)> {
         }
     });
     ui.data_mut(|d| d.insert_temp(id, novo));
+
+    ui.add_space(12.0);
+    ui.separator();
+    mudou |= tarifa(ui, p);
     if mudou {
         p.recalcular();
     }
     msg
+}
+
+/// Um número opcional: a caixa diz se tem valor; sem ela, "a definir".
+pub fn opcional(ui: &mut egui::Ui, v: &mut Option<f64>, velocidade: f64) -> bool {
+    let mut mudou = false;
+    ui.horizontal(|ui| {
+        let mut tem = v.is_some();
+        if ui
+            .checkbox(&mut tem, "")
+            .on_hover_text(tx("fat-tem_valor"))
+            .changed()
+        {
+            *v = tem.then_some(0.0);
+            mudou = true;
+        }
+        match v {
+            Some(x) => {
+                mudou |= ui
+                    .add(
+                        egui::DragValue::new(x)
+                            .range(0.0..=1.0e9)
+                            .speed(velocidade)
+                            .max_decimals(4),
+                    )
+                    .changed();
+            }
+            None => {
+                ui.colored_label(colors::TEXT_WEAK, tx("rel-a_definir"));
+            }
+        }
+    });
+    mudou
+}
+
+/// A tarifa de energia (fase AM4): horário de pico, intervalo de demanda, demanda contratada
+/// e preços, todos informados pelo usuário.
+fn tarifa(ui: &mut egui::Ui, p: &mut Projeto) -> bool {
+    use utsim_ambiental_core::formato::Tariff;
+    let mut mudou = false;
+    ui.heading(tx("fat-tarifa"));
+    ui.label(egui::RichText::new(tx("fat-tarifa_explica")).color(colors::TEXT_WEAK));
+    let cat = &mut p.lateral.environment;
+    let mut usar = cat.tariff.is_some();
+    if ui.checkbox(&mut usar, tx("fat-usar_tarifa")).changed() {
+        cat.tariff = usar.then(Tariff::inicial);
+        mudou = true;
+    }
+    let Some(t) = &mut cat.tariff else {
+        return mudou;
+    };
+    egui::Grid::new("tarifa")
+        .num_columns(2)
+        .spacing([12.0, 6.0])
+        .show(ui, |ui| {
+            ui.label(tx("fat-horario_pico"));
+            ui.horizontal(|ui| {
+                mudou |= ui
+                    .add(egui::TextEdit::singleline(&mut t.peak.from).desired_width(50.0))
+                    .changed();
+                ui.label("–");
+                mudou |= ui
+                    .add(egui::TextEdit::singleline(&mut t.peak.to).desired_width(50.0))
+                    .changed();
+                mudou |= ui
+                    .checkbox(&mut t.peak.weekdays_only, tx("fat-dias_uteis"))
+                    .changed();
+            });
+            ui.end_row();
+            ui.label(tx("fat-intervalo_demanda"));
+            mudou |= ui
+                .add(
+                    egui::DragValue::new(&mut t.demand_interval_min)
+                        .range(1..=60)
+                        .suffix(" min"),
+                )
+                .changed();
+            ui.end_row();
+            ui.label(tx("fat-contratada"));
+            mudou |= opcional(ui, &mut t.contracted_kw, 1.0);
+            ui.end_row();
+            ui.label(tx("fat-preco_pico"));
+            mudou |= opcional(ui, &mut t.price_kwh_peak, 0.01);
+            ui.end_row();
+            ui.label(tx("fat-preco_fora"));
+            mudou |= opcional(ui, &mut t.price_kwh_off_peak, 0.01);
+            ui.end_row();
+            ui.label(tx("fat-preco_kw"));
+            mudou |= opcional(ui, &mut t.price_kw, 0.1);
+            ui.end_row();
+            ui.label(tx("fat-preco_ultra"));
+            mudou |= opcional(ui, &mut t.price_kw_overrun, 0.1);
+            ui.end_row();
+            ui.label(tx("fat-fonte_tarifa"));
+            ui.horizontal(|ui| {
+                mudou |= ui
+                    .add(egui::TextEdit::singleline(&mut t.source).desired_width(220.0))
+                    .changed();
+                let s = t.source.trim();
+                if s.is_empty() || s.eq_ignore_ascii_case(utsim_ambiental_core::formato::A_DEFINIR)
+                {
+                    crate::fabrica::selo(ui, tx("fat-sem_fonte"), colors::WARNING);
+                }
+            });
+            ui.end_row();
+        });
+    mudou
 }

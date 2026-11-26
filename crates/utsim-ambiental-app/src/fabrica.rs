@@ -482,7 +482,17 @@ impl Vista {
             resp.rect.max - vec2(14.0, 18.0),
         );
         pintor.rect_filled(r, 2.0, colors::FIELD);
-        let pmax = pico.map_or(1.0, |x| x.1).max(1e-9) * 1.1;
+        let contratada = p
+            .lateral
+            .environment
+            .tariff
+            .as_ref()
+            .and_then(|t| t.contracted_kw);
+        let pmax = pico
+            .map_or(1.0, |x| x.1)
+            .max(contratada.unwrap_or(0.0))
+            .max(1e-9)
+            * 1.1;
         let x_de = |t: f64| r.left() + ((t - a) / (b - a).max(1e-12)) as f32 * r.width();
         let y_de = |kw: f64| r.bottom() - (kw / pmax) as f32 * r.height();
         let t_de = |x: f32| a + ((x - r.left()) / r.width()).clamp(0.0, 1.0) as f64 * (b - a);
@@ -490,6 +500,41 @@ impl Vista {
         if let Some((x, y)) = p.janela {
             let sel = Rect::from_x_y_ranges(x_de(x)..=x_de(y), r.y_range());
             pintor.rect_filled(sel, 0.0, crate::app::COR_APP.gamma_multiply(0.18));
+        }
+        // Os intervalos de demanda: o pico sombreado e a demanda média de cada um.
+        if let Some(d) = &inv.demanda {
+            for iv in &d.intervalos {
+                let faixa = r.x_range();
+                let x0 = x_de(iv.de).clamp(faixa.min, faixa.max);
+                let x1 = x_de(iv.ate).clamp(faixa.min, faixa.max);
+                if iv.pico {
+                    pintor.rect_filled(
+                        Rect::from_x_y_ranges(x0..=x1, r.y_range()),
+                        0.0,
+                        colors::WARNING.gamma_multiply(0.10),
+                    );
+                }
+                pintor.line_segment(
+                    [pos2(x0, y_de(iv.kw)), pos2(x1, y_de(iv.kw))],
+                    Stroke::new(2.0, colors::TEXT_WEAK.gamma_multiply(0.7)),
+                );
+            }
+        }
+        if let Some(c) = contratada {
+            let y = y_de(c);
+            pintor.extend(Shape::dashed_line(
+                &[pos2(r.left(), y), pos2(r.right(), y)],
+                Stroke::new(1.0, colors::ERROR),
+                6.0,
+                4.0,
+            ));
+            pintor.text(
+                pos2(r.right() - 4.0, y - 2.0),
+                Align2::RIGHT_BOTTOM,
+                fx("fab-contratada", &[("kw", vx(&num(c, casas(c))))]),
+                FontId::proportional(11.0),
+                colors::ERROR,
+            );
         }
         // A escada.
         let mut pts: Vec<Pos2> = Vec::with_capacity(inv.curva.len() * 2 + 2);
@@ -639,6 +684,55 @@ impl Vista {
                 ui.label(com_intervalo(&inv.pecas_boas));
                 ui.end_row();
             });
+        if let Some(d) = &inv.demanda {
+            ui.separator();
+            ui.label(egui::RichText::new(tx("fab-demanda")).strong());
+            egui::Grid::new("demanda")
+                .num_columns(2)
+                .spacing([12.0, 4.0])
+                .show(ui, |ui| {
+                    ui.label(tx("fab-demanda_max"));
+                    ui.label(format!("{} {}", com_intervalo(&d.max_kw), tx("un-kw")));
+                    ui.end_row();
+                    ui.label(tx("fab-demanda_pico"));
+                    match &d.pico_kw {
+                        Some(x) => ui.label(format!("{} {}", com_intervalo(x), tx("un-kw"))),
+                        None => ui.colored_label(colors::TEXT_WEAK, tx("fab-sem_pico_na_janela")),
+                    };
+                    ui.end_row();
+                    ui.label(tx("fab-energia_pico"));
+                    ui.label(format!(
+                        "{} {}",
+                        com_intervalo(&d.energia_pico_kwh),
+                        tx("un-kwh")
+                    ));
+                    ui.end_row();
+                    ui.label(tx("fab-fator_de_carga"));
+                    ui.label(com_intervalo(&d.fator_de_carga));
+                    ui.end_row();
+                    ui.label(tx("fab-conta_energia"));
+                    match &d.custo {
+                        Ok((total, _)) => {
+                            ui.label(com_intervalo(total))
+                                .on_hover_text(tx("fab-conta_explica"));
+                        }
+                        Err(f) => {
+                            let nomes: Vec<&str> = f.iter().map(|x| tx_preco(x)).collect();
+                            if ui
+                                .link(tx("fab-falta_preco"))
+                                .on_hover_text(fx(
+                                    "fab-falta_preco_dica",
+                                    &[("precos", vx(&nomes.join(", ")))],
+                                ))
+                                .clicked()
+                            {
+                                self.ir_para = Some(Tela::Fatores);
+                            }
+                        }
+                    }
+                    ui.end_row();
+                });
+        }
         for f in &inv.fatores_sem_fonte {
             selo(
                 ui,
@@ -1119,4 +1213,14 @@ fn pintar_selo(p: &egui::Painter, esquerda: Pos2, texto: &str, cor: Color32, tam
         egui::StrokeKind::Inside,
     );
     p.galley(r.center() - galley.size() / 2.0, galley, cor);
+}
+
+/// O nome de um preço da tarifa, na língua de agora.
+pub fn tx_preco(campo: &str) -> &'static str {
+    match campo {
+        "price_kwh_peak" => tx("fat-preco_pico"),
+        "price_kwh_off_peak" => tx("fat-preco_fora"),
+        "price_kw" => tx("fat-preco_kw"),
+        _ => tx("fat-preco_ultra"),
+    }
 }

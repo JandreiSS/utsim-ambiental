@@ -62,6 +62,16 @@ de uso didático e a lista de fatores com as fontes.
   não é informado, o CO₂ aparece como "falta fator".
 - Fator sem fonte aparece com o selo "sem fonte" em todas as telas.
 
+## Tarifa de energia
+
+Em **Fatores**, marque **Usar tarifa neste modelo** e informe o horário de pico, o intervalo
+de demanda (15 minutos, se não souber), a demanda contratada e os preços. Nenhum preço vem
+pronto: sem um preço que a conta usa, aparece "falta preço".
+
+Na **Fábrica**, a curva de carga mostra o pico sombreado, a demanda de cada intervalo e a
+linha da demanda contratada. O painel mostra a demanda máxima, a demanda no pico, a energia
+no pico, o fator de carga e a conta de energia simulada da janela.
+
 ## Salvar
 
 **Salvar** grava o bloco ambiental num arquivo ao lado do modelo (`<modelo>.ambiental.ron`).

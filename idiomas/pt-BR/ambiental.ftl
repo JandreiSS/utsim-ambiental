@@ -220,3 +220,34 @@ rel-potencia_media = Potência média da fábrica (kW), primeira replicação
 rel-fatores = Fatores e fontes
 rel-a_definir = a definir
 rel-sem_fatores = Nenhum fator cadastrado: nenhum número de emissão neste relatório.
+
+## AM4: demanda, pico e tarifa
+
+fat-tarifa = Tarifa de energia
+fat-tarifa_explica = Horário de pico, demanda contratada e preços: todos informados por você, sem valor de fábrica. Bandeiras, tributos e energia reativa ficam de fora.
+fat-usar_tarifa = Usar tarifa neste modelo
+fat-horario_pico = Horário de pico
+fat-dias_uteis = só em dias úteis (o 1º dia é segunda)
+fat-intervalo_demanda = Intervalo de demanda
+fat-contratada = Demanda contratada (kW)
+fat-preco_pico = Preço do kWh no pico
+fat-preco_fora = Preço do kWh fora do pico
+fat-preco_kw = Preço do kW de demanda
+fat-preco_ultra = Preço do kW de ultrapassagem
+fat-fonte_tarifa = Fonte da tarifa
+fab-demanda = Demanda e tarifa
+fab-demanda_max = Demanda máxima
+fab-demanda_pico = Demanda no pico
+fab-sem_pico_na_janela = a janela não passa pelo pico
+fab-energia_pico = Energia no pico
+fab-fator_de_carga = Fator de carga
+fab-conta_energia = Conta de energia simulada
+fab-conta_explica = Conta da janela simulada: energia no pico e fora dele, a demanda (a contratada ou a medida, a maior) e a ultrapassagem, como se a janela fosse um período de cobrança.
+fab-falta_preco = falta preço
+fab-falta_preco_dica = Sem conta: faltam { $precos }. Informe na tela Fatores.
+fab-contratada = contratada { $kw } kW
+rel-parcela_pico = Parcela da energia no pico
+rel-parcela_fora = Parcela da energia fora do pico
+rel-parcela_demanda = Parcela da demanda
+rel-parcela_ultra = Parcela da ultrapassagem
+rel-tarifa_fonte = Pico de { $de } a { $ate }, intervalo de { $min } minutos. Fonte da tarifa: { $fonte }.

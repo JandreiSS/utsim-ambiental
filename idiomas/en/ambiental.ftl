@@ -220,3 +220,34 @@ rel-potencia_media = Average factory power (kW), first replication
 rel-fatores = Factors and sources
 rel-a_definir = to be defined
 rel-sem_fatores = No factor registered: no emission figure in this report.
+
+## AM4: demanda, pico e tarifa
+
+fat-tarifa = Energy tariff
+fat-tarifa_explica = Peak hours, contracted demand and prices: all entered by you, with no built-in values. Surcharges, taxes and reactive energy are left out.
+fat-usar_tarifa = Use a tariff in this model
+fat-horario_pico = Peak hours
+fat-dias_uteis = weekdays only (day 1 is Monday)
+fat-intervalo_demanda = Demand interval
+fat-contratada = Contracted demand (kW)
+fat-preco_pico = Price per kWh at peak
+fat-preco_fora = Price per kWh off peak
+fat-preco_kw = Price per kW of demand
+fat-preco_ultra = Price per kW of overrun
+fat-fonte_tarifa = Tariff source
+fab-demanda = Demand and tariff
+fab-demanda_max = Maximum demand
+fab-demanda_pico = Demand at peak
+fab-sem_pico_na_janela = the window does not cross peak hours
+fab-energia_pico = Energy at peak
+fab-fator_de_carga = Load factor
+fab-conta_energia = Simulated energy bill
+fab-conta_explica = Bill of the simulated window: energy at and off peak, the demand (contracted or measured, the larger) and the overrun, as if the window were a billing period.
+fab-falta_preco = price missing
+fab-falta_preco_dica = No bill: missing { $precos }. Fill them in on the Factors screen.
+fab-contratada = contracted { $kw } kW
+rel-parcela_pico = Peak energy part
+rel-parcela_fora = Off-peak energy part
+rel-parcela_demanda = Demand part
+rel-parcela_ultra = Overrun part
+rel-tarifa_fonte = Peak from { $de } to { $ate }, { $min }-minute interval. Tariff source: { $fonte }.

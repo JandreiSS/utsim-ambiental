@@ -16,6 +16,7 @@ use utsim_model::{Model, ObjectKind, SinkRole};
 use crate::formato::{Driver, EnvironmentDef, EventDriver, Grupo, Lateral};
 use crate::medida::{self, Trecho, janela_da_rodada, medir, recorte};
 use crate::rodar::Rodada;
+use crate::tarifa::{Conta, Intervalo, demanda};
 
 /// Um indicador entre replicações: média e meia largura do intervalo de 95 %.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -170,6 +171,21 @@ pub struct Inventario {
     pub trechos: BTreeMap<String, Vec<Trecho>>,
     /// Energia por evento (peça, setup, partida) da primeira replicação: `(instante, kWh)`.
     pub impulsos: Vec<(Time, f64)>,
+    /// Demanda, pico e conta de energia (fase AM4), quando o modelo tem tarifa e rastro.
+    pub demanda: Option<ResumoDemanda>,
+}
+
+/// A demanda e a conta de energia entre as replicações.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResumoDemanda {
+    /// Os intervalos da primeira replicação, na janela da conta.
+    pub intervalos: Vec<Intervalo>,
+    pub max_kw: Indicador,
+    pub pico_kw: Option<Indicador>,
+    pub energia_pico_kwh: Indicador,
+    pub fator_de_carga: Indicador,
+    /// O total e as parcelas médias, ou os preços que faltam.
+    pub custo: Result<(Indicador, Conta), Vec<&'static str>>,
 }
 
 impl Inventario {
@@ -261,6 +277,9 @@ pub fn avaliar(
     let mut fab_escopo: BTreeMap<u8, Vec<f64>> = BTreeMap::new();
     let mut fab_falta: Vec<String> = Vec::new();
     let mut trechos_r0: Vec<Vec<Trecho>> = Vec::new();
+    // Por replicação, na janela da conta: a linha do tempo e os impulsos de cada nó.
+    let mut trechos_rep: Vec<Vec<Vec<Trecho>>> = vec![Vec::new(); n];
+    let mut impulsos_rep: Vec<Vec<(Time, f64)>> = vec![Vec::new(); n];
 
     for (indice, obj) in modelo.objects.iter().enumerate() {
         if !consome(&obj.kind) {
@@ -329,6 +348,17 @@ pub fn avaliar(
                     l.0 += dir;
                     l.1 += q;
                 }
+            }
+            if tem_bloco {
+                for ep in &d.energy_per {
+                    let ts = match ep.driver {
+                        EventDriver::Item => &m.t_entradas,
+                        EventDriver::Setup => &m.t_setups,
+                        EventDriver::Startup => &m.t_partidas,
+                    };
+                    impulsos_rep[r].extend(ts.iter().map(|t| (*t, ep.kwh)));
+                }
+                trechos_rep[r].push(m.trechos.clone());
             }
             if r == 0 && tem_bloco {
                 // A linha do tempo e os impulsos da janela inteira, para a curva.
@@ -581,6 +611,76 @@ pub fn avaliar(
     fab_falta.dedup();
     pendencias.sort();
     pendencias.dedup();
+
+    // Demanda, pico e conta de energia (fase AM4).
+    if let Some(t) = &cat.tariff
+        && com_rastro
+    {
+        let ds: Vec<_> = rodadas
+            .iter()
+            .enumerate()
+            .map(|(r, rod)| {
+                let refs: Vec<&[Trecho]> = trechos_rep[r].iter().map(|v| v.as_slice()).collect();
+                let mut imp = impulsos_rep[r].clone();
+                imp.sort_by(|a, b| a.0.total_cmp(&b.0));
+                demanda(
+                    &medida::curva(&refs),
+                    &imp,
+                    recorte(rod, janela),
+                    &cat.clock,
+                    t,
+                )
+            })
+            .collect();
+        for d in &ds {
+            push(&mut met, "ambiental.demanda_max_kw".into(), d.max_kw);
+            if let Some(p) = d.pico_kw {
+                push(&mut met, "ambiental.demanda_pico_kw".into(), p);
+            }
+            push(
+                &mut met,
+                "ambiental.energia_pico_kwh".into(),
+                d.energia_pico_kwh,
+            );
+            push(
+                &mut met,
+                "ambiental.fator_de_carga".into(),
+                d.fator_de_carga,
+            );
+            if let Ok(c) = &d.conta {
+                push(&mut met, "ambiental.custo_energia".into(), c.total());
+            }
+        }
+        let col = |f: &dyn Fn(&crate::tarifa::Demanda) -> f64| -> Indicador {
+            Indicador::de(&ds.iter().map(f).collect::<Vec<_>>())
+        };
+        let picos: Vec<f64> = ds.iter().filter_map(|d| d.pico_kw).collect();
+        let custo = match ds.iter().find_map(|d| d.conta.as_ref().err()) {
+            Some(f) => Err(f.clone()),
+            None => {
+                let contas: Vec<Conta> = ds.iter().filter_map(|d| d.conta.clone().ok()).collect();
+                let k = contas.len().max(1) as f64;
+                let media = Conta {
+                    energia_pico: contas.iter().map(|c| c.energia_pico).sum::<f64>() / k,
+                    energia_fora: contas.iter().map(|c| c.energia_fora).sum::<f64>() / k,
+                    demanda: contas.iter().map(|c| c.demanda).sum::<f64>() / k,
+                    ultrapassagem: contas.iter().map(|c| c.ultrapassagem).sum::<f64>() / k,
+                };
+                Ok((
+                    Indicador::de(&contas.iter().map(Conta::total).collect::<Vec<_>>()),
+                    media,
+                ))
+            }
+        };
+        inv.demanda = Some(ResumoDemanda {
+            intervalos: ds.first().map(|d| d.intervalos.clone()).unwrap_or_default(),
+            max_kw: col(&|d| d.max_kw),
+            pico_kw: (!picos.is_empty()).then(|| Indicador::de(&picos)),
+            energia_pico_kwh: col(&|d| d.energia_pico_kwh),
+            fator_de_carga: col(&|d| d.fator_de_carga),
+            custo,
+        });
+    }
 
     let refs: Vec<&[Trecho]> = trechos_r0.iter().map(|v| v.as_slice()).collect();
     inv.curva = medida::curva(&refs);
@@ -1057,5 +1157,61 @@ mod testes {
                 .iter()
                 .any(|x| x.origem == crate::medida::STANDBY)
         );
+    }
+
+    /// Com tarifa, a energia dos intervalos de demanda (pico + fora) é a energia da fábrica,
+    /// replicação a replicação, e a conta só sai com todos os preços.
+    #[test]
+    fn demanda_fecha_com_a_energia() {
+        let m = modelo_setup();
+        let rod = crate::rodar::simular(&m).unwrap();
+        let mut l = Lateral {
+            environment: EnvironmentCatalog::inicial(),
+            ..Lateral::default()
+        };
+        let mut t = crate::formato::Tariff::inicial();
+        t.peak.from = "08:00".into();
+        t.peak.to = "10:00".into();
+        l.environment.tariff = Some(t);
+        let mut d = EnvironmentDef::default();
+        d.power.producing = 10.0;
+        d.power.waiting = 2.0;
+        d.energy_per.push(EnergyPer {
+            driver: EventDriver::Item,
+            kwh: 0.3,
+        });
+        l.objects.insert("forno".into(), d);
+        let inv = avaliar(&m, &l, &rod, None);
+        let fab = &inv.metricas["ambiental.energia_kwh"];
+        let pico = &inv.metricas["ambiental.energia_pico_kwh"];
+        let dem = inv.demanda.as_ref().unwrap();
+        assert!(dem.max_kw.media > 2.0 && dem.max_kw.media <= 10.0 + 1e-9 + 0.3 * 4.0 * 3.0);
+        assert!(dem.custo.is_err());
+        let fora: f64 = dem
+            .intervalos
+            .iter()
+            .filter(|x| !x.pico)
+            .map(|x| x.kwh)
+            .sum();
+        let p0: f64 = dem
+            .intervalos
+            .iter()
+            .filter(|x| x.pico)
+            .map(|x| x.kwh)
+            .sum();
+        assert!((p0 - pico[0]).abs() < 1e-9);
+        assert!(
+            (p0 + fora - fab[0]).abs() < 1e-6 * fab[0],
+            "{} {}",
+            p0 + fora,
+            fab[0]
+        );
+        // Com os preços, a conta sai.
+        let t = l.environment.tariff.as_mut().unwrap();
+        t.price_kwh_peak = Some(1.0);
+        t.price_kwh_off_peak = Some(0.5);
+        t.price_kw = Some(20.0);
+        let inv = avaliar(&m, &l, &rod, None);
+        assert!(inv.metrica("ambiental.custo_energia").unwrap().media > 0.0);
     }
 }

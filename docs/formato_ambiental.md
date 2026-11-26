@@ -80,7 +80,30 @@ O que ainda não conta aparece na tela, na lista "Ainda não contado".
 | `clock` | `start` ("06:00") e `time_unit` (`Second`, `Minute`, `Hour`): a unidade de tempo do modelo |
 | `flows` | os fluxos: `(name, kind, unit, direction)`; `kind` é `Energy`, `Fuel`, `Water`, `Material`, `Waste`, `Effluent`, `Emission` ou `Other` |
 | `factors` | `(flow, scope, kg_co2e, source, year)`, mais `range` e `didactic` opcionais |
-| `gases`, `waste_destinations`, `effluent`, `tariff`, `prices`, `allocation`, `targets` | das fases AM4 a AM9 |
+| `tariff` | a tarifa (fase AM4), abaixo |
+| `gases`, `waste_destinations`, `effluent`, `prices`, `allocation`, `targets` | das fases AM5 a AM9 |
+
+### Tarifa
+
+```ron
+tariff: Some((
+    peak: (from: "18:00", to: "21:00", weekdays_only: true),
+    demand_interval_min: 15,
+    contracted_kw: Some(60.0),
+    price_kwh_peak: None, price_kwh_off_peak: None, price_kw: None,
+    price_kw_overrun: None,           // preço de cada kW acima da contratada
+    source: "a definir",
+)),
+```
+
+- A demanda de um intervalo é a energia dele (curva de carga mais a energia por evento)
+  dividida pela duração. Os intervalos seguem o relógio do modelo (`clock.start`); nas
+  bordas da janela, o intervalo incompleto usa a duração que está dentro dela.
+- Um intervalo é de pico quando o meio dele cai entre `from` e `to`. Com `weekdays_only`, o
+  primeiro dia da simulação é uma segunda-feira.
+- A conta da janela: energia no pico e fora × preços + demanda cobrada (a contratada ou a
+  medida, a maior) × `price_kw` + ultrapassagem × `price_kw_overrun`. Faltando um preço que a
+  conta usa, não há conta.
 
 A potência dos nós é contada no **primeiro fluxo do tipo `Energy`** (o app cria
 "eletricidade", em kWh).
@@ -119,3 +142,6 @@ replicações):
 | `ambiental.energia_kwh`, `ambiental.energia_sem_valor_kwh` | soma dos nós |
 | `ambiental.kwh_por_peca` | energia por peça boa (as que chegam às saídas que não são de refugo) |
 | `ambiental.co2e_kg`, `ambiental.co2e_kg.escopo<n>` | emissão total e por escopo |
+| `ambiental.demanda_max_kw`, `ambiental.demanda_pico_kw` | maior demanda na janela e nos intervalos de pico |
+| `ambiental.energia_pico_kwh`, `ambiental.fator_de_carga` | energia no pico, demanda média sobre a máxima |
+| `ambiental.custo_energia` | conta de energia simulada (só com todos os preços) |

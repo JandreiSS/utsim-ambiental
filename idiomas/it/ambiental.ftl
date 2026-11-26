@@ -220,3 +220,34 @@ rel-potencia_media = Potenza media della fabbrica (kW), prima replica
 rel-fatores = Fattori e fonti
 rel-a_definir = da definire
 rel-sem_fatores = Nessun fattore registrato: nessun numero di emissione in questo report.
+
+## AM4: demanda, pico e tarifa
+
+fat-tarifa = Tariffa dell'energia
+fat-tarifa_explica = Fascia di punta, potenza impegnata e prezzi: tutti inseriti da te, senza valori predefiniti. Maggiorazioni, imposte ed energia reattiva sono esclusi.
+fat-usar_tarifa = Usa una tariffa in questo modello
+fat-horario_pico = Fascia di punta
+fat-dias_uteis = solo feriali (il 1º giorno è lunedì)
+fat-intervalo_demanda = Intervallo di domanda
+fat-contratada = Potenza impegnata (kW)
+fat-preco_pico = Prezzo del kWh in punta
+fat-preco_fora = Prezzo del kWh fuori punta
+fat-preco_kw = Prezzo del kW di potenza
+fat-preco_ultra = Prezzo del kW di superamento
+fat-fonte_tarifa = Fonte della tariffa
+fab-demanda = Potenza e tariffa
+fab-demanda_max = Potenza massima
+fab-demanda_pico = Potenza in punta
+fab-sem_pico_na_janela = la finestra non attraversa la punta
+fab-energia_pico = Energia in punta
+fab-fator_de_carga = Fattore di carico
+fab-conta_energia = Bolletta energetica simulata
+fab-conta_explica = Bolletta della finestra simulata: energia in punta e fuori punta, la potenza (impegnata o misurata, la maggiore) e il superamento, come se la finestra fosse un periodo di fatturazione.
+fab-falta_preco = manca il prezzo
+fab-falta_preco_dica = Nessuna bolletta: mancano { $precos }. Inseriscili nella schermata Fattori.
+fab-contratada = impegnata { $kw } kW
+rel-parcela_pico = Quota dell'energia in punta
+rel-parcela_fora = Quota dell'energia fuori punta
+rel-parcela_demanda = Quota della potenza
+rel-parcela_ultra = Quota del superamento
+rel-tarifa_fonte = Punta da { $de } a { $ate }, intervallo di { $min } minuti. Fonte della tariffa: { $fonte }.

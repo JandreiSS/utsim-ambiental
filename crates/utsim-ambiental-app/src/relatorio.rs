@@ -225,6 +225,61 @@ pub fn documento(p: &Projeto, inv: &Inventario) -> Document {
         }
     }
 
+    if let Some(d) = &inv.demanda {
+        doc.heading(tx("fab-demanda"));
+        let mut pares = vec![
+            (
+                tx("fab-demanda_max").to_string(),
+                format!("{} {}", com_intervalo(&d.max_kw), tx("un-kw")),
+            ),
+            (
+                tx("fab-demanda_pico").to_string(),
+                d.pico_kw
+                    .as_ref()
+                    .map_or(tx("fab-sem_pico_na_janela").to_string(), |x| {
+                        format!("{} {}", com_intervalo(x), tx("un-kw"))
+                    }),
+            ),
+            (
+                tx("fab-energia_pico").to_string(),
+                format!("{} {}", com_intervalo(&d.energia_pico_kwh), tx("un-kwh")),
+            ),
+            (
+                tx("fab-fator_de_carga").to_string(),
+                com_intervalo(&d.fator_de_carga),
+            ),
+        ];
+        match &d.custo {
+            Ok((total, c)) => {
+                pares.push((tx("fab-conta_energia").to_string(), com_intervalo(total)));
+                pares.push((tx("rel-parcela_pico").to_string(), num(c.energia_pico, 2)));
+                pares.push((tx("rel-parcela_fora").to_string(), num(c.energia_fora, 2)));
+                pares.push((tx("rel-parcela_demanda").to_string(), num(c.demanda, 2)));
+                pares.push((tx("rel-parcela_ultra").to_string(), num(c.ultrapassagem, 2)));
+            }
+            Err(f) => {
+                let nomes: Vec<&str> = f.iter().map(|x| crate::fabrica::tx_preco(x)).collect();
+                pares.push((
+                    tx("fab-conta_energia").to_string(),
+                    fx("fab-falta_preco_dica", &[("precos", vx(&nomes.join(", ")))]),
+                ));
+            }
+        }
+        doc.kv(pares);
+        if let Some(t) = &p.lateral.environment.tariff {
+            doc.para(&fx(
+                "rel-tarifa_fonte",
+                &[
+                    ("de", vx(&t.peak.from)),
+                    ("ate", vx(&t.peak.to)),
+                    ("min", vx(&t.demand_interval_min)),
+                    ("fonte", vx(&t.source)),
+                ],
+            ));
+        }
+        doc.para(tx("fab-conta_explica"));
+    }
+
     // Os fatores, sempre, com as fontes.
     doc.heading(tx("rel-fatores"));
     let linhas: Vec<Vec<String>> = cat

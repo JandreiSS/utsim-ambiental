@@ -14,6 +14,7 @@ pub mod formato;
 pub mod mapa;
 pub mod medida;
 pub mod rodar;
+pub mod tarifa;
 pub mod validacao;
 
 use std::path::{Path, PathBuf};
