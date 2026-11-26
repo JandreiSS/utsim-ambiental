@@ -8,8 +8,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
-use utsim_ambiental_core::{EnvironmentDef, Inventario, Lateral, Problema, avaliar, validar};
-use utsim_core::RunReport;
+use utsim_ambiental_core::{
+    EnvironmentDef, Inventario, Lateral, Problema, Rodada, avaliar, validar,
+};
 use utsim_model::Model;
 
 /// A base guardada para o "Antes e depois": o bloco e a conta daquele momento.
@@ -25,11 +26,13 @@ pub struct Projeto {
     pub lateral: Lateral,
     /// O bloco como está gravado, para saber se há mudança a salvar.
     pub salvo: Lateral,
-    pub relatorios: Vec<RunReport>,
+    pub rodadas: Vec<Rodada>,
+    /// A janela de tempo da conta (`None`: a janela de estatística inteira).
+    pub janela: Option<(f64, f64)>,
     pub inventario: Option<Inventario>,
     pub base: Option<Base>,
     pub problemas: Vec<Problema>,
-    rodando: Option<mpsc::Receiver<Result<Vec<RunReport>, String>>>,
+    rodando: Option<mpsc::Receiver<Result<Vec<Rodada>, String>>>,
 }
 
 impl Projeto {
@@ -43,7 +46,8 @@ impl Projeto {
             modelo,
             salvo: lateral.clone(),
             lateral,
-            relatorios: Vec::new(),
+            rodadas: Vec::new(),
+            janela: None,
             inventario: None,
             base: None,
             problemas: Vec::new(),
@@ -68,7 +72,7 @@ impl Projeto {
         let modelo = self.modelo.clone();
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            let r = modelo.run_replications().map_err(|e| e.to_string());
+            let r = utsim_ambiental_core::simular(&modelo);
             let _ = tx.send(r);
         });
         self.rodando = Some(rx);
@@ -76,7 +80,7 @@ impl Projeto {
 
     /// Simula aqui mesmo, sem thread (testes).
     pub fn simular_agora(&mut self) -> Result<(), String> {
-        self.relatorios = self.modelo.run_replications().map_err(|e| e.to_string())?;
+        self.rodadas = utsim_ambiental_core::simular(&self.modelo)?;
         self.recalcular();
         Ok(())
     }
@@ -91,8 +95,9 @@ impl Projeto {
         match rx.try_recv() {
             Ok(Ok(r)) => {
                 self.rodando = None;
-                self.relatorios = r;
+                self.rodadas = r;
                 self.base = None;
+                self.janela = None;
                 self.recalcular();
                 Some(Ok(()))
             }
@@ -111,8 +116,8 @@ impl Projeto {
     /// Refaz a validação e a conta sobre os relatórios que já existem.
     pub fn recalcular(&mut self) {
         self.problemas = validar(&self.modelo, &self.lateral);
-        self.inventario = (!self.relatorios.is_empty())
-            .then(|| avaliar(&self.modelo, &self.lateral, &self.relatorios));
+        self.inventario = (!self.rodadas.is_empty())
+            .then(|| avaliar(&self.modelo, &self.lateral, &self.rodadas, self.janela));
     }
 
     /// O bloco do nó, criado vazio se ainda não existe.

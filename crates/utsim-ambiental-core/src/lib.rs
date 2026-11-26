@@ -12,12 +12,15 @@
 pub mod conta;
 pub mod formato;
 pub mod mapa;
+pub mod medida;
+pub mod rodar;
 pub mod validacao;
 
 use std::path::{Path, PathBuf};
 
 pub use conta::{Estimativa, Indicador, Inventario, NoInventario, Vilao, avaliar, viloes};
 pub use formato::{EnvironmentCatalog, EnvironmentDef, Grupo, Lateral};
+pub use rodar::{Rodada, simular};
 pub use validacao::{Problema, validar};
 
 /// Os erros de leitura e gravação do arquivo lateral.

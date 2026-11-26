@@ -28,10 +28,30 @@ Os números são simulados, para ensino: não são medição nem inventário ofi
 - **Simular de novo** roda a simulação outra vez (por exemplo, depois de mudar o modelo no
   UTSim).
 
+## Curva de carga e "Tocar o dia"
+
+- Embaixo do mapa fica a curva de carga: a potência da fábrica somada, no tempo (primeira
+  replicação). O ponto amarelo é o pico.
+- **Tocar o dia** reproduz o dia em uns 30 segundos: o mapa mostra a potência de cada
+  máquina naquele instante. A reprodução para sozinha no pico e diz quais máquinas estavam
+  ligadas juntas.
+- Clique na curva para ver um instante. **Arraste** na curva para fazer a conta só naquele
+  trecho (um turno, o horário de pico); duplo clique ou **Janela inteira** volta ao todo.
+
 ## Máquinas
 
 Uma linha por máquina: a etapa e a potência (kW) em cada grupo de estado. Tire a potência da
 placa da máquina, do catálogo do fabricante ou de uma medição.
+
+Em **Detalhes**: a energia por peça, por setup e por partida (ligar depois de parada) e o
+**desligamento em espera**: depois de esperar mais que o limite, a máquina conta com a
+potência de fora de turno, e cada volta conta uma partida. É uma aproximação: a simulação
+não atrasa a máquina para religar.
+
+## Relatórios
+
+**Gerar HTML** ou **Gerar PDF** grava o relatório ao lado do modelo. Ele sempre traz o aviso
+de uso didático e a lista de fatores com as fontes.
 
 ## Fatores
 

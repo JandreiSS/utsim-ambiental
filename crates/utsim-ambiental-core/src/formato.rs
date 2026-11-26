@@ -378,6 +378,25 @@ impl Default for Clock {
     }
 }
 
+impl Clock {
+    /// O instante `t` do modelo no relógio: o dia (0 = o primeiro) e os minutos desde a
+    /// meia-noite. Sem hora de início legível, o dia começa às 0:00.
+    pub fn relogio(&self, t: f64) -> (u32, f64) {
+        let inicio = crate::validacao::hora(&self.start).unwrap_or(0) as f64;
+        let minutos = inicio + t * self.time_unit.em_horas() * 60.0;
+        let dia = (minutos / 1440.0).floor().max(0.0);
+        (dia as u32, minutos - dia * 1440.0)
+    }
+
+    /// `"HH:MM"` do instante `t` (com `+N` quando passa do primeiro dia).
+    pub fn hora(&self, t: f64) -> String {
+        let (d, m) = self.relogio(t);
+        let m = m.round() as u32 % 1440;
+        let h = format!("{:02}:{:02}", m / 60, m % 60);
+        if d > 0 { format!("{h} +{d}") } else { h }
+    }
+}
+
 /// A unidade de tempo do modelo.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TimeUnit {

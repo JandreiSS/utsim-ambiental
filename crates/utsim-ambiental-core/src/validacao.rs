@@ -292,6 +292,13 @@ mod testes {
     }
 
     #[test]
+    fn relogio_do_modelo() {
+        let c = crate::formato::Clock::default();
+        assert_eq!(c.hora(3600.0), "07:00");
+        assert_eq!(c.hora(20.0 * 3600.0), "02:00 +1");
+    }
+
+    #[test]
     fn hora_do_dia() {
         assert_eq!(hora("18:30"), Some(1110));
         assert_eq!(hora("24:00"), None);

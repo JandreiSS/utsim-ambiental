@@ -1,18 +1,21 @@
-//! A conta de energia e de emissão (fase AM1): horas em cada estado, energia por nó e por
-//! grupo de estado, kWh por peça, energia sem valor agregado, emissão em CO₂ equivalente por
-//! escopo e as métricas com nome (plano 2.2, 2.5 e 4.2.5).
+//! A conta de energia e de emissão (fases AM1 e AM3): horas em cada estado, energia por nó
+//! e por grupo de estado, kWh por peça, energia sem valor agregado, energia por setup e por
+//! partida, desligamento em espera, emissão em CO₂ equivalente por escopo, a curva de carga
+//! e as métricas com nome (plano 2.2, 2.5 e 4.2.5).
 //!
-//! A conta é feita depois da rodada, sobre os relatórios das replicações: mudar uma potência
-//! ou um fator refaz só a conta, sem simular de novo. Todo número é uma métrica por
-//! replicação, com média e intervalo de 95 % entre as replicações.
+//! A conta é feita depois da rodada, sobre o relatório e o rastro das replicações: mudar uma
+//! potência, um fator ou a janela de tempo refaz só a conta, sem simular de novo. Todo
+//! número é uma métrica por replicação, com média e intervalo de 95 % entre as replicações.
 
 use std::collections::BTreeMap;
 
-use utsim_core::RunReport;
+use utsim_core::Time;
 use utsim_core::stats::Summary;
 use utsim_model::{Model, ObjectKind, SinkRole};
 
 use crate::formato::{Driver, EnvironmentDef, EventDriver, Grupo, Lateral};
+use crate::medida::{self, Trecho, janela_da_rodada, medir, recorte};
+use crate::rodar::Rodada;
 
 /// Um indicador entre replicações: média e meia largura do intervalo de 95 %.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -62,17 +65,24 @@ impl Estimativa {
     }
 }
 
+impl Default for Estimativa {
+    fn default() -> Self {
+        Estimativa::FaltaFator(Vec::new())
+    }
+}
+
 /// Uma linha do cartão "De onde veio": direcionador × coeficiente = quantidade.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Linha {
-    /// O que foi medido: um estado do motor (`"blocked"`), `"item"` ou o nome de um fluxo.
+    /// O que foi medido: um estado do motor (`"blocked"`), `"item"`, `"setup"`, `"partida"`
+    /// ou o nome de um fluxo.
     pub origem: String,
     pub tipo: TipoLinha,
-    /// O grupo de estado, quando a linha é um estado de um dos cinco grupos.
+    /// O grupo de estado, quando a linha é de energia.
     pub grupo: Option<Grupo>,
-    /// O direcionador médio (horas ou peças).
+    /// O direcionador médio (horas ou eventos).
     pub direcionador: f64,
-    /// O coeficiente do nó (kW, kWh por peça, quantidade por unidade).
+    /// O coeficiente do nó (kW, kWh por evento, quantidade por unidade).
     pub coeficiente: f64,
     /// A quantidade média (kWh ou a unidade do fluxo).
     pub quantidade: f64,
@@ -84,6 +94,10 @@ pub enum TipoLinha {
     Estado,
     /// Peças × kWh por peça.
     EnergiaPorPeca,
+    /// Setups × kWh por setup.
+    EnergiaPorSetup,
+    /// Partidas × kWh por partida.
+    EnergiaPorPartida,
     /// Um fluxo do catálogo × o direcionador.
     Fluxo,
 }
@@ -146,12 +160,16 @@ pub struct Inventario {
     pub fatores_sem_fonte: Vec<String>,
     /// Os fatores usados marcados como didáticos.
     pub fatores_didaticos: Vec<String>,
-}
-
-impl Default for Estimativa {
-    fn default() -> Self {
-        Estimativa::FaltaFator(Vec::new())
-    }
+    /// A janela da conta e a janela de estatística inteira, da primeira replicação.
+    pub janela: (Time, Time),
+    pub janela_total: (Time, Time),
+    /// A curva de carga da fábrica na janela inteira, da primeira replicação
+    /// (`(instante, kW)`); vazia sem rastro.
+    pub curva: Vec<(Time, f64)>,
+    /// A linha do tempo de cada nó com bloco na janela inteira, da primeira replicação.
+    pub trechos: BTreeMap<String, Vec<Trecho>>,
+    /// Energia por evento (peça, setup, partida) da primeira replicação: `(instante, kWh)`.
+    pub impulsos: Vec<(Time, f64)>,
 }
 
 impl Inventario {
@@ -161,6 +179,30 @@ impl Inventario {
 
     pub fn metrica(&self, chave: &str) -> Option<Indicador> {
         self.metricas.get(chave).map(|v| Indicador::de(v))
+    }
+
+    /// O instante e a potência do pico da curva de carga.
+    pub fn pico(&self) -> Option<(Time, f64)> {
+        // O primeiro instante em que a potência chega ao máximo.
+        self.curva
+            .iter()
+            .copied()
+            .fold(None, |m: Option<(Time, f64)>, x| match m {
+                Some(y) if y.1 >= x.1 => Some(y),
+                _ => Some(x),
+            })
+    }
+
+    /// A potência e o estado de cada nó com bloco no instante `t` (primeira replicação).
+    pub fn potencias_em(&self, t: Time) -> Vec<(&str, f64, &'static str)> {
+        self.trechos
+            .iter()
+            .filter_map(|(n, ts)| {
+                ts.iter()
+                    .find(|x| x.de <= t && t < x.ate)
+                    .map(|x| (n.as_str(), x.kw, x.estado))
+            })
+            .collect()
     }
 }
 
@@ -183,16 +225,28 @@ pub fn consome(kind: &ObjectKind) -> bool {
     !matches!(kind, ObjectKind::Source { .. } | ObjectKind::Sink)
 }
 
-/// A conta inteira, sobre os relatórios das replicações.
-pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> Inventario {
+/// A conta inteira, sobre as replicações, na janela pedida (`None`: a janela de estatística
+/// inteira).
+pub fn avaliar(
+    modelo: &Model,
+    lateral: &Lateral,
+    rodadas: &[Rodada],
+    janela: Option<(Time, Time)>,
+) -> Inventario {
     let cat = &lateral.environment;
     let hu = cat.clock.time_unit.em_horas();
     let eletrico = cat.fluxo_eletrico().map(|f| f.name.clone());
     let vazio = EnvironmentDef::default();
+    let n = rodadas.len();
+    let com_rastro = rodadas.iter().all(|r| r.rastro.is_some()) && n > 0;
     let mut inv = Inventario {
-        replicacoes: relatorios.len(),
+        replicacoes: n,
         ..Inventario::default()
     };
+    if let Some(r0) = rodadas.first() {
+        inv.janela = recorte(r0, janela);
+        inv.janela_total = janela_da_rodada(r0);
+    }
     let mut met: BTreeMap<String, Vec<f64>> = BTreeMap::new();
     let push = |m: &mut BTreeMap<String, Vec<f64>>, k: String, x: f64| {
         m.entry(k).or_default().push(x);
@@ -201,14 +255,17 @@ pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> I
     let mut usados: Vec<String> = Vec::new();
 
     // Por replicação: total da fábrica, por escopo.
-    let n = relatorios.len();
     let mut fab_kwh = vec![0.0; n];
     let mut fab_sem = vec![0.0; n];
     let mut fab_co2 = vec![0.0; n];
     let mut fab_escopo: BTreeMap<u8, Vec<f64>> = BTreeMap::new();
     let mut fab_falta: Vec<String> = Vec::new();
+    let mut trechos_r0: Vec<Vec<Trecho>> = Vec::new();
 
-    for obj in modelo.objects.iter().filter(|o| consome(&o.kind)) {
+    for (indice, obj) in modelo.objects.iter().enumerate() {
+        if !consome(&obj.kind) {
+            continue;
+        }
         let def = lateral.objects.get(&obj.name);
         let d = def.unwrap_or(&vazio);
         let tem_bloco = def
@@ -218,42 +275,50 @@ pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> I
         let mut pecas = vec![0.0; n];
         let mut fluxos: BTreeMap<String, Vec<f64>> = BTreeMap::new();
         // Linhas do cartão: soma das replicações, dividida no fim.
-        let mut est: BTreeMap<String, (f64, f64)> = BTreeMap::new(); // estado → (horas, kWh)
-        let mut por_peca = (0.0, 0.0); // (peças, kWh)
-        let mut fl_dir: BTreeMap<String, (f64, f64)> = BTreeMap::new(); // fluxo → (dir, qtd)
+        let mut est: BTreeMap<&'static str, (f64, f64)> = BTreeMap::new();
+        let mut eventos: [(f64, f64); 3] = [(0.0, 0.0); 3]; // peça, setup, partida
+        let mut fl_dir: BTreeMap<String, (f64, f64)> = BTreeMap::new();
 
-        for (r, rel) in relatorios.iter().enumerate() {
-            let Some(b) = rel.blocks.iter().find(|b| b.name == obj.name) else {
-                continue;
-            };
-            let janela = (rel.end_time - rel.stats_from).max(0.0) * hu;
-            let horas = |estado: &str| b.states.get(estado).copied().unwrap_or(0.0) * janela;
-            for (estado, frac) in &b.states {
-                let h = frac * janela;
-                let e = h * d.power.no_estado(estado);
+        for (r, rod) in rodadas.iter().enumerate() {
+            let win = recorte(rod, janela);
+            let m = medir(rod, indice, &obj.name, d, win, hu);
+            for (estado, h) in &m.horas {
+                let e = h * medida::potencia(d, estado);
                 kwh[r] += e;
-                if let Some(g) = Grupo::de_estado(estado) {
+                if let Some(g) = medida::grupo(estado) {
                     grupos[r][g.indice()] += e;
                 }
-                let l = est.entry(estado.clone()).or_default();
+                let l = est.entry(estado).or_default();
                 l.0 += h;
                 l.1 += e;
             }
-            pecas[r] = b.output as f64;
+            pecas[r] = m.saidas;
             for ep in &d.energy_per {
-                if ep.driver == EventDriver::Item {
-                    let e = ep.kwh * b.input as f64;
+                let (k, conta, g) = match ep.driver {
+                    EventDriver::Item => (0, Some(m.entradas), Grupo::Produzindo),
+                    EventDriver::Setup => (1, m.setups, Grupo::Preparando),
+                    EventDriver::Startup => (2, m.partidas, Grupo::Preparando),
+                };
+                if let Some(c) = conta {
+                    let e = ep.kwh * c;
                     kwh[r] += e;
-                    grupos[r][Grupo::Produzindo.indice()] += e;
-                    por_peca.0 += b.input as f64;
-                    por_peca.1 += e;
+                    grupos[r][g.indice()] += e;
+                    eventos[k].0 += c;
+                    eventos[k].1 += e;
                 }
             }
             for f in &d.flows {
                 let dir = match &f.driver {
-                    Driver::Item => Some(b.input as f64),
-                    Driver::GoodItem => Some(b.output as f64),
-                    Driver::Time(estados) => Some(estados.iter().map(|e| horas(e.nome())).sum()),
+                    Driver::Item => Some(m.entradas),
+                    Driver::GoodItem => Some(m.saidas),
+                    Driver::Time(estados) => Some(
+                        estados
+                            .iter()
+                            .map(|e| m.horas.get(e.nome()).copied().unwrap_or(0.0))
+                            .sum(),
+                    ),
+                    Driver::Setup => m.setups,
+                    Driver::Startup => m.partidas,
                     _ => None,
                 };
                 if let Some(dir) = dir {
@@ -265,43 +330,57 @@ pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> I
                     l.1 += q;
                 }
             }
+            if r == 0 && tem_bloco {
+                // A linha do tempo e os impulsos da janela inteira, para a curva.
+                let total = if janela.is_some() {
+                    medir(rod, indice, &obj.name, d, janela_da_rodada(rod), hu)
+                } else {
+                    m
+                };
+                for ep in &d.energy_per {
+                    let ts = match ep.driver {
+                        EventDriver::Item => &total.t_entradas,
+                        EventDriver::Setup => &total.t_setups,
+                        EventDriver::Startup => &total.t_partidas,
+                    };
+                    inv.impulsos.extend(ts.iter().map(|t| (*t, ep.kwh)));
+                }
+                inv.trechos.insert(obj.name.clone(), total.trechos.clone());
+                trechos_r0.push(total.trechos);
+            }
         }
 
         // O que esta versão ainda não conta.
-        for ep in &d.energy_per {
-            match ep.driver {
-                EventDriver::Setup => pendencias.push(Pendencia {
-                    no: obj.name.clone(),
-                    chave: "setup",
-                }),
-                EventDriver::Startup => pendencias.push(Pendencia {
-                    no: obj.name.clone(),
-                    chave: "partida",
-                }),
-                EventDriver::Item => {}
+        let mut pend = |chave: &'static str| {
+            pendencias.push(Pendencia {
+                no: obj.name.clone(),
+                chave,
+            })
+        };
+        if !com_rastro {
+            for ep in &d.energy_per {
+                match ep.driver {
+                    EventDriver::Setup => pend("setup"),
+                    EventDriver::Startup => pend("partida"),
+                    EventDriver::Item => {}
+                }
+            }
+            if d.standby.is_some() {
+                pend("espera");
             }
         }
         for f in &d.flows {
             let chave = match f.driver {
                 Driver::Scrap => "refugo",
                 Driver::Rework => "retrabalho",
-                Driver::Setup => "setup",
-                Driver::Startup => "partida",
+                Driver::Setup if !com_rastro => "setup",
+                Driver::Startup if !com_rastro => "partida",
                 Driver::Distance { .. } => "distancia",
                 Driver::Volume => "volume",
                 Driver::Mass => "massa",
                 _ => continue,
             };
-            pendencias.push(Pendencia {
-                no: obj.name.clone(),
-                chave,
-            });
-        }
-        if d.standby.is_some() {
-            pendencias.push(Pendencia {
-                no: obj.name.clone(),
-                chave: "espera",
-            });
+            pend(chave);
         }
 
         // Emissão do nó: a eletricidade e cada fluxo, com o fator do catálogo.
@@ -312,19 +391,21 @@ pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> I
             if q.iter().all(|x| *x == 0.0) {
                 return;
             }
-            match cat.fator(fluxo) {
-                Some(f) if f.kg_co2e.is_some() => {
-                    let k = f.kg_co2e.unwrap_or(0.0);
-                    let s = escopo.entry(f.scope).or_insert_with(|| vec![0.0; n]);
-                    for r in 0..n {
-                        co2[r] += q[r] * k;
-                        s[r] += q[r] * k;
+            match cat
+                .fator(fluxo)
+                .and_then(|f| f.kg_co2e.map(|k| (f.scope, k)))
+            {
+                Some((s, k)) => {
+                    let sv = escopo.entry(s).or_insert_with(|| vec![0.0; n]);
+                    for (r, x) in q.iter().enumerate() {
+                        co2[r] += x * k;
+                        sv[r] += x * k;
                     }
                     if !usados.iter().any(|u| u == fluxo) {
                         usados.push(fluxo.to_string());
                     }
                 }
-                _ => falta.push(fluxo.to_string()),
+                None => falta.push(fluxo.to_string()),
             }
         };
         match &eletrico {
@@ -336,17 +417,27 @@ pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> I
             emitir(f, q, &mut falta);
         }
 
+        let sem_valor: Vec<f64> = grupos
+            .iter()
+            .map(|g| {
+                Grupo::TODOS
+                    .iter()
+                    .filter(|x| x.sem_valor())
+                    .map(|x| g[x.indice()])
+                    .sum()
+            })
+            .collect();
+
         // Métricas com nome.
         if tem_bloco {
             let no = &obj.name;
             for r in 0..n {
                 push(&mut met, format!("{no}.energia_kwh"), kwh[r]);
-                let sem: f64 = Grupo::TODOS
-                    .iter()
-                    .filter(|g| g.sem_valor())
-                    .map(|g| grupos[r][g.indice()])
-                    .sum();
-                push(&mut met, format!("{no}.energia_sem_valor_kwh"), sem);
+                push(
+                    &mut met,
+                    format!("{no}.energia_sem_valor_kwh"),
+                    sem_valor[r],
+                );
                 for g in Grupo::TODOS {
                     push(
                         &mut met,
@@ -364,13 +455,13 @@ pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> I
                     push(&mut met, format!("{no}.co2e_kg"), co2[r]);
                 }
                 fab_kwh[r] += kwh[r];
-                fab_sem[r] += sem;
+                fab_sem[r] += sem_valor[r];
                 fab_co2[r] += co2[r];
             }
             for (s, v) in &escopo {
                 let t = fab_escopo.entry(*s).or_insert_with(|| vec![0.0; n]);
-                for r in 0..n {
-                    t[r] += v[r];
+                for (r, x) in v.iter().enumerate() {
+                    t[r] += x;
                 }
             }
             fab_falta.extend(falta.iter().cloned());
@@ -381,24 +472,32 @@ pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> I
             .into_iter()
             .filter(|(_, (h, _))| *h > 0.0)
             .map(|(estado, (h, e))| Linha {
-                grupo: Grupo::de_estado(&estado),
-                coeficiente: d.power.no_estado(&estado),
-                origem: estado,
+                grupo: medida::grupo(estado),
+                coeficiente: medida::potencia(d, estado),
+                origem: estado.to_string(),
                 tipo: TipoLinha::Estado,
                 direcionador: h / rn,
                 quantidade: e / rn,
             })
             .collect();
         linhas.sort_by(|a, b| b.quantidade.total_cmp(&a.quantidade));
-        if por_peca.0 > 0.0 {
-            linhas.push(Linha {
-                origem: "item".into(),
-                tipo: TipoLinha::EnergiaPorPeca,
-                grupo: Some(Grupo::Produzindo),
-                direcionador: por_peca.0 / rn,
-                coeficiente: por_peca.1 / por_peca.0,
-                quantidade: por_peca.1 / rn,
-            });
+        let tipos = [
+            ("item", TipoLinha::EnergiaPorPeca, Grupo::Produzindo),
+            ("setup", TipoLinha::EnergiaPorSetup, Grupo::Preparando),
+            ("partida", TipoLinha::EnergiaPorPartida, Grupo::Preparando),
+        ];
+        for (k, (origem, tipo, g)) in tipos.into_iter().enumerate() {
+            let (c, e) = eventos[k];
+            if c > 0.0 {
+                linhas.push(Linha {
+                    origem: origem.into(),
+                    tipo,
+                    grupo: Some(g),
+                    direcionador: c / rn,
+                    coeficiente: e / c,
+                    quantidade: e / rn,
+                });
+            }
         }
         for (f, (dir, q)) in fl_dir {
             linhas.push(Linha {
@@ -411,16 +510,6 @@ pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> I
             });
         }
 
-        let sem_valor: Vec<f64> = grupos
-            .iter()
-            .map(|g| {
-                Grupo::TODOS
-                    .iter()
-                    .filter(|x| x.sem_valor())
-                    .map(|x| g[x.indice()])
-                    .sum()
-            })
-            .collect();
         let kpp: Vec<f64> = (0..n)
             .filter(|r| pecas[*r] > 0.0)
             .map(|r| kwh[r] / pecas[r])
@@ -450,18 +539,19 @@ pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> I
         });
     }
 
-    // Peças boas: as que chegam às saídas que não são de refugo.
-    let boas: Vec<f64> = relatorios
+    // Peças boas: as que chegam às saídas que não são de refugo, na janela.
+    let boas: Vec<f64> = rodadas
         .iter()
-        .map(|rel| {
+        .map(|rod| {
+            let win = recorte(rod, janela);
             modelo
                 .objects
                 .iter()
-                .filter(|o| {
+                .enumerate()
+                .filter(|(_, o)| {
                     matches!(o.kind, ObjectKind::Sink) && o.sink_role != Some(SinkRole::Scrap)
                 })
-                .filter_map(|o| rel.blocks.iter().find(|b| b.name == o.name))
-                .map(|b| b.input as f64)
+                .map(|(i, o)| medir(rod, i, &o.name, &vazio, win, hu).entradas)
                 .sum()
         })
         .collect();
@@ -492,6 +582,9 @@ pub fn avaliar(modelo: &Model, lateral: &Lateral, relatorios: &[RunReport]) -> I
     pendencias.sort();
     pendencias.dedup();
 
+    let refs: Vec<&[Trecho]> = trechos_r0.iter().map(|v| v.as_slice()).collect();
+    inv.curva = medida::curva(&refs);
+    inv.impulsos.sort_by(|a, b| a.0.total_cmp(&b.0));
     inv.energia = Indicador::de(&fab_kwh);
     inv.sem_valor = Indicador::de(&fab_sem);
     inv.co2e = if fab_falta.is_empty() {
@@ -567,7 +660,11 @@ mod testes {
     use super::*;
     use crate::formato::{Direction, FlowKind, TimeUnit};
     use crate::formato::{EnergyPer, EnvironmentCatalog, Estado, Factor, FlowDef, FlowUse};
-    use utsim_core::{BlockReport, TallySummary};
+    use utsim_core::{BlockReport, RunReport, TallySummary};
+
+    fn so(v: Vec<RunReport>) -> Vec<Rodada> {
+        v.into_iter().map(Rodada::so_relatorio).collect()
+    }
 
     fn bloco(
         nome: &str,
@@ -651,7 +748,7 @@ mod testes {
                 bloco("fim", "sink", 100, 0, &[]),
             ],
         );
-        let inv = avaliar(&modelo(), &l, &[r]);
+        let inv = avaliar(&modelo(), &l, &so(vec![r]), None);
         let f = inv.no("forno").unwrap();
         assert!((f.energia.media - 15.2).abs() < 1e-9);
         assert!((f.sem_valor.media - 3.2).abs() < 1e-9);
@@ -693,7 +790,7 @@ mod testes {
                 &[("idle", 0.5), ("blocked", 0.5)],
             )],
         );
-        let inv = avaliar(&modelo(), &l, &[r]);
+        let inv = avaliar(&modelo(), &l, &so(vec![r]), None);
         let p = inv.no("prensa").unwrap();
         assert!((p.energia.media - 15.0).abs() < 1e-9);
         assert!((p.por_grupo[Grupo::Produzindo.indice()].media - 5.0).abs() < 1e-9);
@@ -770,7 +867,7 @@ mod testes {
                 )
             })
             .collect();
-        let inv = avaliar(&modelo(), &l, &reps);
+        let inv = avaliar(&modelo(), &l, &so(reps.clone()), None);
         let soma: f64 = inv.nos.iter().map(|n| n.energia.media).sum();
         assert!((soma - inv.energia.media).abs() < 1e-9);
         for n in &inv.nos {
@@ -786,7 +883,7 @@ mod testes {
         // Baixar a espera do forno de 5 para 1 kW: a diferença pareada é exata.
         let mut l2 = l.clone();
         l2.objects.get_mut("forno").unwrap().power.waiting = 1.0;
-        let inv2 = avaliar(&modelo(), &l2, &reps);
+        let inv2 = avaliar(&modelo(), &l2, &so(reps.clone()), None);
         let d = comparar(&inv, &inv2, "forno.energia_kwh").unwrap();
         // Espera: 0,5 h e 0,3 h → −4×0,5 = −2 e −4×0,3 = −1,2; média −1,6.
         assert!((d.media + 1.6).abs() < 1e-9);
@@ -809,11 +906,11 @@ mod testes {
             3600.0,
             vec![bloco("forno", "processor", 1, 1, &[("idle", 1.0)])],
         );
-        let a = avaliar(&modelo(), &l, std::slice::from_ref(&r))
+        let a = avaliar(&modelo(), &l, &so(vec![r.clone()]), None)
             .energia
             .media;
         l.objects.get_mut("forno").unwrap().power.waiting = 2.0;
-        let b = avaliar(&modelo(), &l, &[r]).energia.media;
+        let b = avaliar(&modelo(), &l, &so(vec![r]), None).energia.media;
         assert!(b >= a);
     }
 
@@ -829,12 +926,136 @@ mod testes {
         d.power.producing = 10.0;
         d.power.waiting = 3.0;
         l.objects.insert("forno".into(), d);
-        let a = avaliar(&m, &l, &m.run_replications().unwrap());
-        let b = avaliar(&m, &l, &m.run_replications().unwrap());
+        let a = avaliar(&m, &l, &crate::rodar::simular(&m).unwrap(), None);
+        let b = avaliar(&m, &l, &crate::rodar::simular(&m).unwrap(), None);
         assert_eq!(a.metricas, b.metricas);
         // O forno trabalha 30 s a cada 60 s: perto de metade do tempo produzindo.
         let f = a.no("forno").unwrap();
         assert!(f.energia.media > 0.0);
         assert!(f.por_grupo[Grupo::Produzindo.indice()].media > 0.0);
+    }
+
+    fn modelo_setup() -> Model {
+        Model::parse(
+            r#"Model(name: "m", run: (stop_time: 36000.0, warmup: 3600.0, seed: 5, replications: 3),
+               objects: [(name: "chegada", kind: Source(interarrival: Exp(mean: 300.0))),
+                         (name: "forno", kind: Processor(setup: Const(20.0), process: Const(60.0))),
+                         (name: "fim", kind: Sink)],
+               connections: [("chegada", "forno"), ("forno", "fim")])"#,
+        )
+        .unwrap()
+    }
+
+    /// Com rastro, as horas por estado batem com as frações do relatório, os setups e as
+    /// partidas aparecem, a curva integra a energia da janela e a janela pela metade dá
+    /// menos energia.
+    #[test]
+    fn rastro_setup_janela_e_curva() {
+        let m = modelo_setup();
+        let rod = crate::rodar::simular(&m).unwrap();
+        let mut l = Lateral {
+            environment: EnvironmentCatalog::inicial(),
+            ..Lateral::default()
+        };
+        let mut d = EnvironmentDef::default();
+        d.power.producing = 10.0;
+        d.power.preparing = 6.0;
+        d.power.waiting = 2.0;
+        d.energy_per.push(EnergyPer {
+            driver: EventDriver::Setup,
+            kwh: 1.0,
+        });
+        l.objects.insert("forno".into(), d);
+        let com = avaliar(&m, &l, &rod, None);
+        let so_rel: Vec<Rodada> = rod
+            .iter()
+            .map(|r| Rodada::so_relatorio(r.relatorio.clone()))
+            .collect();
+        let sem = avaliar(&m, &l, &so_rel, None);
+        // Sem a energia por setup, as duas contas dão a mesma energia de estados.
+        let f = com.no("forno").unwrap();
+        let setup = f
+            .linhas
+            .iter()
+            .find(|x| x.tipo == TipoLinha::EnergiaPorSetup)
+            .expect("setups medidos");
+        assert!(setup.direcionador > 10.0);
+        let estados_com: f64 = f
+            .linhas
+            .iter()
+            .filter(|x| x.tipo == TipoLinha::Estado)
+            .map(|x| x.quantidade)
+            .sum();
+        let estados_sem: f64 = sem
+            .no("forno")
+            .unwrap()
+            .linhas
+            .iter()
+            .filter(|x| x.tipo == TipoLinha::Estado)
+            .map(|x| x.quantidade)
+            .sum();
+        assert!((estados_com - estados_sem).abs() < 1e-6 * estados_sem.max(1.0));
+        assert!(com.pendencias.is_empty());
+        assert!(sem.pendencias.iter().any(|p| p.chave == "setup"));
+        // A curva integra a energia dos estados da primeira replicação.
+        let (a, b) = com.janela_total;
+        let mut integral = 0.0;
+        for w in com.curva.windows(2) {
+            integral += w[0].1 * (w[1].0 - w[0].0);
+        }
+        if let Some(u) = com.curva.last() {
+            integral += u.1 * (b - u.0).max(0.0);
+        }
+        let _ = a;
+        let horas = integral / 3600.0;
+        let r0: f64 =
+            com.metricas["forno.energia_kwh"][0] - com.impulsos.iter().map(|x| x.1).sum::<f64>();
+        assert!((horas - r0).abs() < 1e-6 * r0.max(1.0), "{horas} {r0}");
+        // Metade da janela, menos energia.
+        let meio = avaliar(&m, &l, &rod, Some((a, (a + b) / 2.0)));
+        assert!(meio.energia.media < com.energia.media * 0.75);
+        assert!(meio.energia.media > com.energia.media * 0.25);
+    }
+
+    /// O desligamento em espera: com espera longa e potência fora de turno menor que a de
+    /// espera, a energia cai e aparecem partidas.
+    #[test]
+    fn desligamento_em_espera() {
+        let m = modelo_setup();
+        let rod = crate::rodar::simular(&m).unwrap();
+        let mut l = Lateral {
+            environment: EnvironmentCatalog::inicial(),
+            ..Lateral::default()
+        };
+        let mut d = EnvironmentDef::default();
+        d.power.producing = 10.0;
+        d.power.waiting = 8.0;
+        d.power.off_shift = 0.5;
+        d.energy_per.push(EnergyPer {
+            driver: EventDriver::Startup,
+            kwh: 0.2,
+        });
+        l.objects.insert("forno".into(), d.clone());
+        let antes = avaliar(&m, &l, &rod, None);
+        d.standby = Some(crate::formato::StandbyDef { after: 120.0 });
+        l.objects.insert("forno".into(), d);
+        let depois = avaliar(&m, &l, &rod, None);
+        assert!(depois.energia.media < antes.energia.media);
+        let partidas = depois
+            .no("forno")
+            .unwrap()
+            .linhas
+            .iter()
+            .find(|x| x.tipo == TipoLinha::EnergiaPorPartida)
+            .map_or(0.0, |x| x.direcionador);
+        assert!(partidas > 5.0);
+        assert!(
+            depois
+                .no("forno")
+                .unwrap()
+                .linhas
+                .iter()
+                .any(|x| x.origem == crate::medida::STANDBY)
+        );
     }
 }

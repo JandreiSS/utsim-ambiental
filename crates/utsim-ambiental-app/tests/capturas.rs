@@ -70,6 +70,23 @@ fn fabrica_do_exemplo() {
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_de_onde_veio");
     app.fabrica.de_onde_veio = None;
+    // "Tocar o dia" parado no pico: o mapa mostra a potência daquele instante.
+    let pico = app
+        .projeto
+        .as_ref()
+        .unwrap()
+        .inventario
+        .as_ref()
+        .unwrap()
+        .pico()
+        .unwrap();
+    app.fabrica.toque = Some(pico.0);
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_pico");
+    app.fabrica.toque = None;
+    app.tela = Tela::Relatorios;
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_relatorios");
     app.tela = Tela::Maquinas;
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_maquinas");

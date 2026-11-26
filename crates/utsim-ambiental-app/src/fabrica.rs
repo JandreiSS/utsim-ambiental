@@ -30,7 +30,19 @@ pub struct Vista {
     pub de_onde_veio: Option<String>,
     /// Pedido de trocar de tela (o cartão "falta fator" leva aos Fatores).
     pub ir_para: Option<Tela>,
+    /// O cursor de "Tocar o dia" (instante do modelo); com ele, o mapa mostra a potência
+    /// daquele instante.
+    pub toque: Option<f64>,
+    pub tocando: bool,
+    /// A reprodução já parou no pico uma vez.
+    pub pico_visto: bool,
+    pub ultimo_quadro: Option<f64>,
+    /// Onde começou o arrasto na curva (instante do modelo).
+    pub arrasto: Option<f64>,
 }
+
+/// Quanto dura "Tocar o dia" (a janela inteira), em segundos.
+const DURACAO_TOQUE: f64 = 30.0;
 
 impl Medida {
     fn unidade(self, por_peca: bool) -> &'static str {
@@ -155,6 +167,11 @@ impl Vista {
                     self.painel(ui, p, &inv);
                 });
             });
+        self.avancar_toque(ui.ctx(), &inv);
+        egui::Panel::bottom("curva_de_carga")
+            .default_size(200.0)
+            .resizable(true)
+            .show(ui, |ui| self.curva(ui, p, &inv));
         egui::CentralPanel::default().show(ui, |ui| self.mapa(ui, p, &inv));
         self.cartao(ui.ctx(), p, &inv);
         msg
@@ -177,15 +194,36 @@ impl Vista {
         let tela = |x: f64, y: f64| pos2((cx + x * esc) as f32, (cy + y * esc) as f32);
         let pts: Vec<Pos2> = planta.pontos.iter().map(|q| tela(q.x, q.y)).collect();
 
-        let valores: Vec<Option<f64>> = planta
-            .pontos
-            .iter()
-            .map(|q| {
-                inv.no(&q.nome)
-                    .and_then(|n| valor(n, self.medida, self.por_peca))
-            })
-            .collect();
-        let max = valores.iter().flatten().copied().fold(0.0, f64::max);
+        // Tocando o dia: a potência de cada máquina naquele instante, na escala da maior
+        // potência do dia (para a cor não mudar de sentido de um quadro para outro).
+        let instante = self.toque.map(|t| inv.potencias_em(t));
+        let (valores, max, unidade): (Vec<Option<f64>>, f64, String) = match &instante {
+            Some(agora) => (
+                planta
+                    .pontos
+                    .iter()
+                    .map(|q| agora.iter().find(|x| x.0 == q.nome).map(|x| x.1))
+                    .collect(),
+                inv.trechos
+                    .values()
+                    .flatten()
+                    .map(|x| x.kw)
+                    .fold(0.0, f64::max),
+                tx("un-kw").to_string(),
+            ),
+            None => {
+                let v: Vec<Option<f64>> = planta
+                    .pontos
+                    .iter()
+                    .map(|q| {
+                        inv.no(&q.nome)
+                            .and_then(|n| valor(n, self.medida, self.por_peca))
+                    })
+                    .collect();
+                let m = v.iter().flatten().copied().fold(0.0, f64::max);
+                (v, m, self.medida.unidade(self.por_peca).to_string())
+            }
+        };
 
         for (a, b) in &planta.ligacoes {
             painter.line_segment(
@@ -249,7 +287,11 @@ impl Vista {
                 colors::TEXT,
             );
             if let Some(n) = no {
-                if self.medida == Medida::Co2 && n.tem_bloco && n.co2e.valor().is_none() {
+                if instante.is_none()
+                    && self.medida == Medida::Co2
+                    && n.tem_bloco
+                    && n.co2e.valor().is_none()
+                {
                     pintar_selo(
                         &painter,
                         c + vec2(-30.0, -lado.y / 2.0 - 20.0),
@@ -272,12 +314,9 @@ impl Vista {
                 && m.distance(c) < 26.0
             {
                 let dica = match (no, valores[i]) {
-                    (Some(_), Some(v)) => format!(
-                        "{}: {} {}",
-                        q.nome,
-                        num(v, casas(v)),
-                        self.medida.unidade(self.por_peca)
-                    ),
+                    (Some(_), Some(v)) => {
+                        format!("{}: {} {}", q.nome, num(v, casas(v)), unidade)
+                    }
                     (Some(n), None) if !n.tem_bloco => {
                         format!("{}: {}", q.nome, tx("fab-informe_potencia"))
                     }
@@ -322,13 +361,246 @@ impl Vista {
         rotulo(0.0, "0".into(), Align2::LEFT_TOP);
         rotulo(
             largura,
-            format!(
-                "{} {}",
-                num(max, casas(max)),
-                self.medida.unidade(self.por_peca)
-            ),
+            format!("{} {}", num(max, casas(max)), unidade),
             Align2::RIGHT_TOP,
         );
+    }
+
+    /// Anda o cursor de "Tocar o dia" e para sozinho no pico (uma vez) e no fim.
+    fn avancar_toque(&mut self, ctx: &egui::Context, inv: &Inventario) {
+        let agora = ctx.input(|i| i.time);
+        if !self.tocando {
+            self.ultimo_quadro = None;
+            return;
+        }
+        let (a, b) = inv.janela_total;
+        let dt = self.ultimo_quadro.map_or(0.0, |u| agora - u);
+        self.ultimo_quadro = Some(agora);
+        let t0 = self.toque.unwrap_or(a);
+        let mut t = t0 + (b - a) * dt / DURACAO_TOQUE;
+        if !self.pico_visto
+            && let Some((tp, _)) = inv.pico()
+            && t0 <= tp
+            && t >= tp
+        {
+            t = tp;
+            self.tocando = false;
+            self.pico_visto = true;
+        }
+        if t >= b {
+            t = b;
+            self.tocando = false;
+        }
+        self.toque = Some(t);
+        ctx.request_repaint();
+    }
+
+    /// A faixa da curva de carga: a potência da fábrica no tempo, o pico, a janela da conta
+    /// (arraste para escolher, duplo clique para a janela inteira) e o cursor do toque.
+    fn curva(&mut self, ui: &mut egui::Ui, p: &mut Projeto, inv: &Inventario) {
+        let relogio = p.lateral.environment.clock.clone();
+        let (a, b) = inv.janela_total;
+        let pico = inv.pico();
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(tx("fab-curva_de_carga")).strong());
+            if inv.curva.is_empty() {
+                return;
+            }
+            let rotulo = if self.tocando {
+                tx("fab-pausar")
+            } else {
+                tx("fab-tocar_o_dia")
+            };
+            if ui.button(rotulo).clicked() {
+                self.tocando = !self.tocando;
+                if self.tocando && self.toque.is_none_or(|t| t >= b) {
+                    self.toque = Some(a);
+                    self.pico_visto = false;
+                }
+            }
+            if self.toque.is_some() && ui.button(tx("fab-parar")).clicked() {
+                self.toque = None;
+                self.tocando = false;
+                self.pico_visto = false;
+            }
+            if let Some((x, y)) = p.janela {
+                ui.label(fx(
+                    "fab-janela",
+                    &[("de", vx(&relogio.hora(x))), ("ate", vx(&relogio.hora(y)))],
+                ));
+                if ui.button(tx("fab-janela_inteira")).clicked() {
+                    p.janela = None;
+                    p.recalcular();
+                }
+            } else {
+                ui.label(egui::RichText::new(tx("fab-arraste_dica")).color(colors::TEXT_WEAK));
+            }
+        });
+        if inv.curva.is_empty() {
+            ui.label(egui::RichText::new(tx("fab-sem_curva")).color(colors::TEXT_WEAK));
+            return;
+        }
+        if let Some(t) = self.toque {
+            let mut ligadas: Vec<(&str, f64, &str)> = inv
+                .potencias_em(t)
+                .into_iter()
+                .filter(|x| x.1 > 0.0)
+                .collect();
+            ligadas.sort_by(|x, y| y.1.total_cmp(&x.1));
+            let nomes: Vec<String> = ligadas
+                .iter()
+                .map(|x| format!("{} ({} kW)", x.0, num(x.1, casas(x.1))))
+                .collect();
+            let no_pico = pico.is_some_and(|(tp, _)| (tp - t).abs() < 1e-9);
+            let chave = if no_pico { "fab-no_pico" } else { "fab-agora" };
+            let total: f64 = ligadas.iter().map(|x| x.1).sum();
+            ui.label(fx(
+                chave,
+                &[
+                    ("hora", vx(&relogio.hora(t))),
+                    ("kw", vx(&num(total, casas(total)))),
+                    ("nos", vx(&nomes.join(", "))),
+                ],
+            ));
+        } else if let Some((tp, kw)) = pico {
+            ui.label(
+                egui::RichText::new(fx(
+                    "fab-pico",
+                    &[
+                        ("kw", vx(&num(kw, casas(kw)))),
+                        ("hora", vx(&relogio.hora(tp))),
+                    ],
+                ))
+                .color(colors::TEXT_WEAK),
+            );
+        }
+        let altura = ui.available_height().max(60.0);
+        let (resp, pintor) =
+            ui.allocate_painter(vec2(ui.available_width(), altura), Sense::click_and_drag());
+        let r = Rect::from_min_max(
+            resp.rect.min + vec2(52.0, 6.0),
+            resp.rect.max - vec2(14.0, 18.0),
+        );
+        pintor.rect_filled(r, 2.0, colors::FIELD);
+        let pmax = pico.map_or(1.0, |x| x.1).max(1e-9) * 1.1;
+        let x_de = |t: f64| r.left() + ((t - a) / (b - a).max(1e-12)) as f32 * r.width();
+        let y_de = |kw: f64| r.bottom() - (kw / pmax) as f32 * r.height();
+        let t_de = |x: f32| a + ((x - r.left()) / r.width()).clamp(0.0, 1.0) as f64 * (b - a);
+        // A janela da conta.
+        if let Some((x, y)) = p.janela {
+            let sel = Rect::from_x_y_ranges(x_de(x)..=x_de(y), r.y_range());
+            pintor.rect_filled(sel, 0.0, crate::app::COR_APP.gamma_multiply(0.18));
+        }
+        // A escada.
+        let mut pts: Vec<Pos2> = Vec::with_capacity(inv.curva.len() * 2 + 2);
+        for (k, (t, kw)) in inv.curva.iter().enumerate() {
+            let t = t.clamp(a, b);
+            if k > 0 {
+                pts.push(pos2(x_de(t), y_de(inv.curva[k - 1].1)));
+            }
+            pts.push(pos2(x_de(t), y_de(*kw)));
+        }
+        if let Some((_, kw)) = inv.curva.last() {
+            pts.push(pos2(r.right(), y_de(*kw)));
+        }
+        pintor.add(Shape::line(pts, Stroke::new(1.4, escala(0.85))));
+        // Eixos: 0 e o pico, o começo e o fim no relógio.
+        let fonte = FontId::proportional(11.0);
+        let fraco = colors::TEXT_WEAK;
+        pintor.text(
+            r.left_bottom() + vec2(-4.0, 0.0),
+            Align2::RIGHT_BOTTOM,
+            "0",
+            fonte.clone(),
+            fraco,
+        );
+        pintor.text(
+            pos2(r.left() - 4.0, y_de(pmax / 1.1)),
+            Align2::RIGHT_CENTER,
+            format!("{} kW", num(pmax / 1.1, 0)),
+            fonte.clone(),
+            fraco,
+        );
+        pintor.text(
+            r.left_bottom() + vec2(0.0, 2.0),
+            Align2::LEFT_TOP,
+            relogio.hora(a),
+            fonte.clone(),
+            fraco,
+        );
+        pintor.text(
+            r.right_bottom() + vec2(0.0, 2.0),
+            Align2::RIGHT_TOP,
+            relogio.hora(b),
+            fonte.clone(),
+            fraco,
+        );
+        if let Some((tp, kw)) = pico {
+            pintor.circle_filled(pos2(x_de(tp), y_de(kw)), 3.5, colors::WARNING);
+        }
+        // O cursor do toque.
+        if let Some(t) = self.toque {
+            let x = x_de(t);
+            pintor.line_segment(
+                [pos2(x, r.top()), pos2(x, r.bottom())],
+                Stroke::new(1.5, colors::TEXT_STRONG),
+            );
+        }
+        // Sob o mouse: a hora e a potência.
+        if let Some(m) = resp.hover_pos()
+            && r.x_range().contains(m.x)
+        {
+            let t = t_de(m.x);
+            let kw = inv
+                .curva
+                .iter()
+                .take_while(|x| x.0 <= t)
+                .last()
+                .map_or(0.0, |x| x.1);
+            pintor.line_segment(
+                [pos2(m.x, r.top()), pos2(m.x, r.bottom())],
+                Stroke::new(1.0, fraco),
+            );
+            pintor.text(
+                pos2(m.x + 6.0, r.top() + 2.0),
+                Align2::LEFT_TOP,
+                format!("{}  {} kW", relogio.hora(t), num(kw, casas(kw))),
+                fonte,
+                colors::TEXT_STRONG,
+            );
+        }
+        // Arrastar escolhe a janela; clicar põe o cursor; duplo clique volta à janela inteira.
+        if resp.drag_started()
+            && let Some(m) = resp.interact_pointer_pos()
+        {
+            self.arrasto = Some(t_de(m.x));
+        }
+        if let (Some(t0), Some(m)) = (self.arrasto, resp.interact_pointer_pos()) {
+            let t1 = t_de(m.x);
+            let sel = Rect::from_x_y_ranges(x_de(t0.min(t1))..=x_de(t0.max(t1)), r.y_range());
+            pintor.rect_stroke(
+                sel,
+                0.0,
+                Stroke::new(1.0, colors::TEXT_STRONG),
+                egui::StrokeKind::Inside,
+            );
+            if resp.drag_stopped() {
+                self.arrasto = None;
+                if (t1 - t0).abs() > (b - a) * 0.01 {
+                    p.janela = Some((t0.min(t1), t0.max(t1)));
+                    p.recalcular();
+                }
+            }
+        }
+        if resp.double_clicked() {
+            p.janela = None;
+            p.recalcular();
+        } else if resp.clicked()
+            && let Some(m) = resp.interact_pointer_pos()
+        {
+            self.toque = Some(t_de(m.x));
+            self.tocando = false;
+        }
     }
 
     /// O painel da direita: a fábrica, o nó escolhido, os vilões, o antes e depois e o que
@@ -691,9 +963,31 @@ impl Vista {
 fn linha_conta(ui: &mut egui::Ui, p: &Projeto, l: &Linha) {
     let (origem, dir, coef, qtd) = match l.tipo {
         TipoLinha::Estado => (
-            fx("fab-estado", &[("estado", vx(&l.origem))]),
+            if l.origem == utsim_ambiental_core::medida::STANDBY {
+                tx("fab-estado_standby").to_string()
+            } else {
+                fx("fab-estado", &[("estado", vx(&l.origem))])
+            },
             format!("{} h", num(l.direcionador, casas(l.direcionador))),
             format!("{} kW", num(l.coeficiente, casas(l.coeficiente))),
+            format!(
+                "{} {}",
+                num(l.quantidade, casas(l.quantidade)),
+                tx("un-kwh")
+            ),
+        ),
+        TipoLinha::EnergiaPorSetup | TipoLinha::EnergiaPorPartida => (
+            if l.tipo == TipoLinha::EnergiaPorSetup {
+                tx("fab-setups").to_string()
+            } else {
+                tx("fab-partidas").to_string()
+            },
+            num(l.direcionador, casas(l.direcionador)),
+            format!(
+                "{} {}",
+                num(l.coeficiente, casas(l.coeficiente)),
+                tx("un-kwh_evento")
+            ),
             format!(
                 "{} {}",
                 num(l.quantidade, casas(l.quantidade)),

@@ -26,6 +26,8 @@ utsim-pasta.workspace = true
 # The family's opening screen, sidebar and the native file picker.
 utsim-ui-tema = { workspace = true, features = ["familia", "arquivos", "abertura"] }
 serde.workspace = true
+# The report generator of the family (HTML and PDF).
+utsim-ferramentas.workspace = true
 # Same egui as the other apps, so Cargo.lock keeps one egui. Light: glow renderer only.
 eframe = { version = "=0.36.2", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
 

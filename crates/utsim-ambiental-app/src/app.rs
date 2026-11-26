@@ -32,6 +32,8 @@ pub struct App {
     arquivo_config: Option<PathBuf>,
     pub projeto: Option<Projeto>,
     pub fabrica: crate::fabrica::Vista,
+    /// O último relatório gravado.
+    pub relatorio: Option<PathBuf>,
     /// A última mensagem do rodapé e se é um erro.
     pub mensagem: Option<(String, bool)>,
 }
@@ -52,6 +54,7 @@ impl App {
             arquivo_config,
             projeto: None,
             fabrica: crate::fabrica::Vista::default(),
+            relatorio: None,
             mensagem: None,
         }
     }
@@ -143,6 +146,13 @@ impl App {
                     self.mensagem = Some(m);
                 }
             }
+            Tela::Relatorios => {
+                if let Some(p) = &self.projeto
+                    && let Some(m) = crate::relatorio::ui(ui, p, &mut self.relatorio)
+                {
+                    self.mensagem = Some(m);
+                }
+            }
             _ => {}
         });
     }
@@ -180,7 +190,7 @@ impl App {
                 itens: vec![
                     depois(Tela::Cenarios, tx("app-cenarios"), tx("app-fase_am8")),
                     depois(Tela::Metas, tx("app-metas"), tx("app-fase_am9")),
-                    depois(Tela::Relatorios, tx("app-relatorios"), tx("app-fase_am3")),
+                    it(Tela::Relatorios, tx("app-relatorios")),
                 ],
             },
         ];

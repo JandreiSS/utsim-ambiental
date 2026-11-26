@@ -39,11 +39,11 @@ Todos os campos são opcionais.
 |---|---|---|
 | `stage` | texto | a etapa do processo ("pintura") |
 | `power` | potências em kW | `producing`, `preparing`, `waiting`, `stopped`, `off_shift` e `by_state` |
-| `energy_per` | lista | energia por evento: `(driver: Item, kwh: 0.2)`; `Setup` e `Startup` chegam na AM3 |
+| `energy_per` | lista | energia por evento: `(driver: Item, kwh: 0.2)`, `Setup` ou `Startup` (partida: sair de `off_shift`, `down`, `stopped` ou do desligamento em espera) |
 | `flows` | lista | `(flow: "gas_natural", amount: 4.0, driver: Time([Processing, Idle]))` |
 | `water` | frações | `incorporated`, `evaporated`, `reuse_to`, `reuse` (conta na AM5) |
 | `effluent` | destino e concentrações | conta na AM5 |
-| `standby` | `(after: 600.0)` | desligamento em espera (conta na AM3) |
+| `standby` | `(after: 600.0)` | desligamento em espera: a espera além de `after` (unidades do modelo) conta com a potência `off_shift`, e a volta conta uma partida |
 
 ### Grupos de estado
 
@@ -68,7 +68,7 @@ cinco grupos (`generating`, viagens de veículos) só contam com potência em `b
 | `GoodItem` | `PecaBoa` | sim: peças que saíram do nó |
 | `Time([estados])` | `Tempo` | sim: horas nos estados dados |
 | `Scrap`, `Rework` | `Refugo`, `Retrabalho` | fase AM5 |
-| `Setup`, `Startup` | `Partida` | fase AM3 (pelo rastro) |
+| `Setup`, `Startup` | `Partida` | sim (pelo rastro) |
 | `Distance(loaded, empty)`, `Volume`, `Mass` | `Distancia`, `Massa` | fase AM5 |
 
 O que ainda não conta aparece na tela, na lista "Ainda não contado".

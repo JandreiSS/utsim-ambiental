@@ -30,10 +30,13 @@ O plano completo, com todas as fases (AM0 a AM16), está em
   - `validacao.rs`: o que pode estar errado no bloco.
   - `conta.rs`: energia, emissão, métricas com nome, vilões e a diferença pareada.
   - `mapa.rs`: a planta vista de cima (posições e ligações).
+  - `rodar.rs`: as replicações com o rastro (mudanças de estado e passagens das peças).
+  - `medida.rs`: horas, peças, setups, partidas e a linha do tempo de cada nó numa janela.
 - `crates/utsim-ambiental-app/`: a janela (egui). Não faz conta, só desenha.
   - `app.rs`: abertura, barra lateral, rodapé. `fabrica.rs`: o mapa de calor.
     `maquinas.rs`: potência de cada máquina. `fatores.rs`: fatores de emissão.
     `projeto.rs`: o modelo aberto, a simulação numa thread e a gravação.
+    `relatorio.rs`: o relatório em HTML e PDF.
   - `tests/capturas.rs`: desenha as telas sem janela (com `UTSIM_CAPTURAS=<pasta>` grava PNG).
 - `exemplos/`: um modelo de exemplo (linha de pintura) com o bloco ambiental ao lado.
 - `idiomas/<língua>/ambiental.ftl`: os textos da interface nas cinco línguas
@@ -79,13 +82,13 @@ campo entrar na família (fase AM10), o bloco muda de lugar, não de formato.
 
 ## O que já existe e o que vem depois
 
-Pronto (MVP, fases AM0 a AM2 e parte da AM3): formato e validação, energia e CO₂e por nó e
-por grupo de estado, mapa de calor, vilões, "De onde veio", telas Máquinas e Fatores,
-recálculo na hora e "Antes e depois" com diferença pareada.
+Pronto (fases AM0 a AM3): formato e validação, energia e CO₂e por nó e por grupo de
+estado, mapa de calor, vilões, "De onde veio", telas Máquinas e Fatores, recálculo na hora,
+"Antes e depois" com diferença pareada, curva de carga pelo rastro, "Tocar o dia", janela de
+tempo arrastável, energia por setup e por partida, desligamento em espera e relatório em
+HTML e PDF.
 
-Próximo passo: o resto da AM3 (curva de carga pelo rastro, "Tocar o dia", janela de tempo
-arrastável, energia por setup e por partida, desligamento em espera, relatório em HTML e
-PDF). Depois, AM4 (demanda, pico e tarifa) e AM5 (massa, água, resíduos e efluentes). A
+Próximo passo: AM4 (demanda, pico e tarifa) e AM5 (massa, água, resíduos e efluentes). A
 seção 8 do plano lista ideias de TCC por curso.
 
 ## Mudar o núcleo da família junto com o app
