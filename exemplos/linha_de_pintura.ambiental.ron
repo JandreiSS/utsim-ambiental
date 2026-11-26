@@ -1,31 +1,58 @@
 // Bloco ambiental do modelo (UTSim Ambiental). Fica ao lado do modelo até o campo
 // `environment` entrar nas bibliotecas da família (docs/formato_ambiental.md).
 //
-// As potências são de exemplo, para a aula: troque pelas da placa ou do catálogo da máquina.
-// Os fatores de emissão estão "a definir" de propósito: o app não traz número de fator.
-// Informe o fator e a fonte na tela Fatores para ver o CO₂ equivalente.
+// As potências, a água, a tinta e as concentrações são de exemplo, para a aula: troque pelas
+// da placa, do catálogo ou de uma medição. Os fatores de emissão, os custos e os limites
+// estão "a definir" de propósito: o app não traz número de fator. Informe o valor e a fonte
+// na tela Fatores para ver o CO₂ equivalente.
 (
     environment: (
         clock: (start: "06:00", time_unit: Second),
         flows: [
             (name: "eletricidade", kind: Energy, unit: "kWh", direction: In),
             (name: "gas_natural", kind: Fuel, unit: "m3", direction: In),
+            (name: "agua", kind: Water, unit: "L", direction: In),
+            (name: "tinta", kind: Material, unit: "kg", direction: In),
+            (name: "borra_tinta", kind: Waste, unit: "kg", direction: Out, destination: Some("tratamento_termico")),
         ],
         factors: [
             (flow: "eletricidade", scope: 2, kg_co2e: None, source: "a definir", year: None),
             (flow: "gas_natural", scope: 1, kg_co2e: None, source: "a definir", year: None),
+            (flow: "agua", scope: 3, kg_co2e: None, source: "a definir", year: None),
+            (flow: "tinta", scope: 3, kg_co2e: None, source: "a definir", year: None),
         ],
+        waste_destinations: [
+            (name: "reciclagem", diverted: true, kg_co2e: None, cost: None, source: "a definir"),
+            (name: "tratamento_termico", diverted: true, kg_co2e: None, cost: None, source: "a definir"),
+            (name: "aterro", diverted: false, kg_co2e: None, cost: None, source: "a definir"),
+        ],
+        effluent: (
+            parameters: [(name: "materia_organica", unit: "mg/L", limit: None, limit_source: "a definir")],
+            destinations: [(name: "tratamento_proprio", removal: {"materia_organica": 0.8},
+                            kwh_per_m3: 1.5, sludge_kg_per_m3: 0.4, cost_per_m3: None)],
+        ),
         allocation: ByProcessTime,
+        item_mass_kg: {"*": 2.5},
+        scrap_destination: Some("reciclagem"),
     ),
     objects: {
         "lavadora": (
             stage: Some("preparo"),
             power: (producing: 15.0, preparing: 6.0, waiting: 9.0, stopped: 1.0, off_shift: 0.5),
+            flows: [
+                (flow: "agua", amount: 12.0, driver: Item),
+            ],
+            water: Some((incorporated: 0.0, evaporated: 0.1, reuse_to: Some("lavadora"), reuse: 0.3)),
+            effluent: Some((destination: "tratamento_proprio", concentration: {"materia_organica": 350.0})),
         ),
         "cabine_de_pintura": (
             stage: Some("pintura"),
             power: (producing: 22.0, preparing: 10.0, waiting: 8.0, stopped: 2.0, off_shift: 0.5,
                     by_state: {"blocked": 16.0}),
+            flows: [
+                (flow: "tinta", amount: 0.05, driver: Item, adds_mass: true),
+                (flow: "borra_tinta", amount: 0.004, driver: Item),
+            ],
         ),
         "estufa": (
             stage: Some("pintura"),

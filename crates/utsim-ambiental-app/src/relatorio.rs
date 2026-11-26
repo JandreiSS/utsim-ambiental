@@ -280,6 +280,124 @@ pub fn documento(p: &Projeto, inv: &Inventario) -> Document {
         doc.para(tx("fab-conta_explica"));
     }
 
+    if let Some(a) = &inv.agua {
+        doc.heading(tx("fab-agua_e_efluentes"));
+        doc.kv(vec![
+            (
+                tx("fab-captacao").into(),
+                format!("{} {}", com_intervalo(&a.captacao_m3), tx("un-m3")),
+            ),
+            (
+                tx("fab-consumo").into(),
+                format!("{} {}", com_intervalo(&a.consumo_m3), tx("un-m3")),
+            ),
+            (
+                tx("fab-reuso").into(),
+                format!("{} %", com_intervalo(&a.reuso_pct)),
+            ),
+            (
+                tx("fab-efluente").into(),
+                format!("{} {}", com_intervalo(&a.efluente_m3), tx("un-m3")),
+            ),
+            (
+                tx("fab-tratamento").into(),
+                format!("{} {}", com_intervalo(&a.tratamento_kwh), tx("un-kwh")),
+            ),
+        ]);
+        if !a.cargas.is_empty() {
+            tabela(
+                &mut doc,
+                tx("rel-cargas"),
+                vec![
+                    tx("fat-parametro").into(),
+                    tx("rel-antes_kg").into(),
+                    tx("rel-depois_kg").into(),
+                    tx("rel-concentracao").into(),
+                    tx("fat-limite").into(),
+                    tx("fat-fonte_limite").into(),
+                ],
+                a.cargas
+                    .iter()
+                    .map(|c| {
+                        vec![
+                            c.parametro.clone(),
+                            com_intervalo(&c.antes_kg),
+                            com_intervalo(&c.depois_kg),
+                            com_intervalo(&c.concentracao),
+                            c.limite
+                                .map_or(tx("rel-a_definir").into(), |l| num(l, casas(l))),
+                            c.fonte_limite.clone(),
+                        ]
+                    })
+                    .collect(),
+            );
+            doc.para(tx("rel-sem_conformidade"));
+        }
+    }
+    if let Some(r) = &inv.residuos {
+        doc.heading(tx("fab-residuos"));
+        tabela(
+            &mut doc,
+            tx("fab-residuos"),
+            vec![
+                tx("fat-destino").into(),
+                tx("un-kg").into(),
+                tx("fat-desviado").into(),
+            ],
+            r.por_destino
+                .iter()
+                .map(|(d, kg, desv)| {
+                    vec![
+                        d.clone(),
+                        com_intervalo(kg),
+                        if *desv { "✓".into() } else { String::new() },
+                    ]
+                })
+                .collect(),
+        );
+        doc.para(&fx(
+            "rel-desvio",
+            &[("pct", vx(&com_intervalo(&r.desvio_pct)))],
+        ));
+    }
+    if let Some(m) = &inv.materiais {
+        doc.heading(tx("fab-materiais"));
+        doc.kv(vec![
+            (
+                tx("fab-entrada_massa").into(),
+                format!("{} {}", com_intervalo(&m.entrada_kg), tx("un-kg")),
+            ),
+            (
+                tx("fab-massa_boa").into(),
+                format!("{} {}", com_intervalo(&m.boa_kg), tx("un-kg")),
+            ),
+            (
+                tx("fab-rendimento").into(),
+                format!("{} %", com_intervalo(&m.rendimento_pct)),
+            ),
+            (
+                tx("fab-sucata").into(),
+                format!("{} {}", com_intervalo(&m.sucata_kg), tx("un-kg")),
+            ),
+            (
+                tx("fab-balanco").into(),
+                format!("{} %", num(m.erro_pct.media, 3)),
+            ),
+            (
+                tx("fab-mochila_kwh").into(),
+                format!("{} {}", com_intervalo(&m.mochila_kwh), tx("un-kwh")),
+            ),
+            (
+                tx("fab-mochila_co2e").into(),
+                texto_estimativa(&m.mochila_co2e),
+            ),
+        ]);
+        doc.para(tx("fab-mochila_explica"));
+    }
+    if let Some(c) = &inv.custo {
+        doc.kv(vec![(tx("fab-custo_fluxos").into(), com_intervalo(c))]);
+    }
+
     // Os fatores, sempre, com as fontes.
     doc.heading(tx("rel-fatores"));
     let linhas: Vec<Vec<String>> = cat

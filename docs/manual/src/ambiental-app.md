@@ -72,6 +72,21 @@ Na **Fábrica**, a curva de carga mostra o pico sombreado, a demanda de cada int
 linha da demanda contratada. O painel mostra a demanda máxima, a demanda no pico, a energia
 no pico, o fator de carga e a conta de energia simulada da janela.
 
+## Água, resíduos e materiais
+
+- Em **Fatores**: a massa das peças (kg), os destinos de resíduo (com a marca "desviado de
+  aterro", fator e custo), o destino da sucata, os parâmetros do efluente (com o limite e a
+  fonte que você cadastrar) e os destinos do efluente (remoção de cada parâmetro, energia,
+  lodo e custo por m³). Na tabela de fluxos, o preço de cada fluxo e o destino dos resíduos.
+- Em **Máquinas → Detalhes**: os fluxos da máquina (água, tinta, borra, gás...), cada um
+  por peça, por hora num estado, por setup ou por kg; se o material soma ou tira massa da
+  peça; o balanço de água (fração incorporada, evaporada e o reuso) e o efluente.
+- Na **Fábrica**: as fichas **Água** e **Resíduos** pintam o mapa; o painel mostra a
+  captação, o reuso, o efluente e as cargas antes e depois do tratamento (em vermelho se a
+  mistura passa do limite cadastrado: o app compara, não afirma conformidade), os resíduos
+  por destino, o rendimento de material, o balanço de massa e a **mochila do refugo**: o que
+  as peças refugadas levaram consigo de energia e de emissão.
+
 ## Salvar
 
 **Salvar** grava o bloco ambiental num arquivo ao lado do modelo (`<modelo>.ambiental.ron`).

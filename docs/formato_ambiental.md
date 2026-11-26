@@ -41,8 +41,8 @@ Todos os campos são opcionais.
 | `power` | potências em kW | `producing`, `preparing`, `waiting`, `stopped`, `off_shift` e `by_state` |
 | `energy_per` | lista | energia por evento: `(driver: Item, kwh: 0.2)`, `Setup` ou `Startup` (partida: sair de `off_shift`, `down`, `stopped` ou do desligamento em espera) |
 | `flows` | lista | `(flow: "gas_natural", amount: 4.0, driver: Time([Processing, Idle]))` |
-| `water` | frações | `incorporated`, `evaporated`, `reuse_to`, `reuse` (conta na AM5) |
-| `effluent` | destino e concentrações | conta na AM5 |
+| `water` | frações | `incorporated`, `evaporated`, `reuse_to`, `reuse`: o efluente é a entrada de água × (1 − incorporada − evaporada), e a fração `reuse` dele volta como entrada de `reuse_to` |
+| `effluent` | destino e concentrações | `(destination: "tratamento_proprio", concentration: {"materia_organica": 350.0})`, em mg/L |
 | `standby` | `(after: 600.0)` | desligamento em espera: a espera além de `after` (unidades do modelo) conta com a potência `off_shift`, e a volta conta uma partida |
 
 ### Grupos de estado
@@ -67,9 +67,11 @@ cinco grupos (`generating`, viagens de veículos) só contam com potência em `b
 | `Item` | `Peca` | sim: peças que entraram no nó |
 | `GoodItem` | `PecaBoa` | sim: peças que saíram do nó |
 | `Time([estados])` | `Tempo` | sim: horas nos estados dados |
-| `Scrap`, `Rework` | `Refugo`, `Retrabalho` | fase AM5 |
+| `Scrap` | `Refugo` | sim: peças que saíram do nó direto para uma saída de refugo |
+| `Rework` | `Retrabalho` | ainda não |
 | `Setup`, `Startup` | `Partida` | sim (pelo rastro) |
-| `Distance(loaded, empty)`, `Volume`, `Mass` | `Distancia`, `Massa` | fase AM5 |
+| `Mass` | `Massa` | sim: kg que entraram no nó |
+| `Distance(loaded, empty)`, `Volume` | `Distancia` | ainda não (veículos e rede de fluidos) |
 
 O que ainda não conta aparece na tela, na lista "Ainda não contado".
 
@@ -81,7 +83,16 @@ O que ainda não conta aparece na tela, na lista "Ainda não contado".
 | `flows` | os fluxos: `(name, kind, unit, direction)`; `kind` é `Energy`, `Fuel`, `Water`, `Material`, `Waste`, `Effluent`, `Emission` ou `Other` |
 | `factors` | `(flow, scope, kg_co2e, source, year)`, mais `range` e `didactic` opcionais |
 | `tariff` | a tarifa (fase AM4), abaixo |
-| `gases`, `waste_destinations`, `effluent`, `prices`, `allocation`, `targets` | das fases AM5 a AM9 |
+| `item_mass_kg` | massa de cada tipo de item, `{"*": 2.5}` para as peças sem tipo (vai para `item_types` na AM10) |
+| `scrap_destination` | o destino da sucata |
+| `waste_destinations` | `(name, diverted, kg_co2e, cost, source)`: o destino dos resíduos, com o fator (escopo 3) e o custo por kg |
+| `effluent` | `parameters: [(name, unit, limit, limit_source)]` e `destinations: [(name, removal, kwh_per_m3, sludge_kg_per_m3, cost_per_m3)]` |
+| `prices` | preço por unidade de cada fluxo |
+| `gases`, `allocation`, `targets` | das fases AM7 a AM9 |
+
+Fluxos de água ficam em `L` ou `m3`. Fluxos de resíduo ficam em kg e levam o `destination` do
+fluxo; a emissão deles é a do destino. A sucata e o lodo do tratamento entram nos resíduos
+da fábrica; a energia do tratamento entra na energia da fábrica.
 
 ### Tarifa
 
@@ -145,3 +156,11 @@ replicações):
 | `ambiental.demanda_max_kw`, `ambiental.demanda_pico_kw` | maior demanda na janela e nos intervalos de pico |
 | `ambiental.energia_pico_kwh`, `ambiental.fator_de_carga` | energia no pico, demanda média sobre a máxima |
 | `ambiental.custo_energia` | conta de energia simulada (só com todos os preços) |
+| `<nó>.agua_m3`, `<nó>.efluente_m3`, `<nó>.carga.<parâmetro>_kg` | água, efluente e carga do nó |
+| `<nó>.residuo_kg`, `<nó>.sucata_kg` | resíduo de processo e sucata atribuída ao nó |
+| `ambiental.agua_m3`, `ambiental.reuso_pct`, `ambiental.efluente_m3`, `ambiental.tratamento_kwh` | captação, reuso, efluente e energia do tratamento |
+| `ambiental.carga.<p>_kg`, `ambiental.carga_tratada.<p>_kg` | carga antes e depois do tratamento |
+| `ambiental.residuo_kg.<destino>`, `ambiental.desvio_aterro_pct` | resíduos por destino e fração desviada |
+| `ambiental.rendimento_material_pct`, `ambiental.balanco_massa_erro_pct` | massa boa sobre a entrada e erro de fechamento |
+| `ambiental.mochila_refugo.kwh`, `ambiental.mochila_refugo.co2e_kg` | o que as peças refugadas levaram |
+| `ambiental.custo` | custo dos fluxos, resíduos e efluentes com preço |

@@ -121,6 +121,12 @@ pub struct NoInventario {
     pub linhas: Vec<Linha>,
     /// Quantidade de cada fluxo do nó, na unidade do catálogo.
     pub fluxos: BTreeMap<String, Indicador>,
+    /// Água que entrou no nó e efluente que saiu, em m³ (fase AM5).
+    pub agua_m3: Option<Indicador>,
+    pub efluente_m3: Option<Indicador>,
+    /// Resíduo de processo e sucata atribuída ao nó, em kg.
+    pub residuo_kg: Option<Indicador>,
+    pub sucata_kg: Option<Indicador>,
 }
 
 /// Algo que a versão atual ainda não conta (o app mostra, nunca esconde).
@@ -173,6 +179,11 @@ pub struct Inventario {
     pub impulsos: Vec<(Time, f64)>,
     /// Demanda, pico e conta de energia (fase AM4), quando o modelo tem tarifa e rastro.
     pub demanda: Option<ResumoDemanda>,
+    /// Água e efluentes, resíduos, massa e mochila do refugo, e custo dos fluxos (fase AM5).
+    pub agua: Option<crate::balanco::ResumoAgua>,
+    pub residuos: Option<crate::balanco::ResumoResiduos>,
+    pub materiais: Option<crate::balanco::ResumoMateriais>,
+    pub custo: Option<Indicador>,
 }
 
 /// A demanda e a conta de energia entre as replicações.
@@ -277,6 +288,15 @@ pub fn avaliar(
     let mut fab_escopo: BTreeMap<u8, Vec<f64>> = BTreeMap::new();
     let mut fab_falta: Vec<String> = Vec::new();
     let mut trechos_r0: Vec<Vec<Trecho>> = Vec::new();
+    // Massa, sucata e caminhos das peças (fase AM5), por replicação.
+    let mats: Vec<Option<crate::materiais::Materiais>> = rodadas
+        .iter()
+        .map(|rod| crate::materiais::medir(modelo, lateral, rod, recorte(rod, janela)))
+        .collect();
+    let nomes: Vec<String> = modelo.objects.iter().map(|o| o.name.clone()).collect();
+    let mut kwh_no = vec![vec![0.0; nomes.len()]; n];
+    let mut entradas_no = vec![vec![0.0; nomes.len()]; n];
+    let mut fluxos_no: BTreeMap<usize, BTreeMap<String, Vec<f64>>> = BTreeMap::new();
     // Por replicação, na janela da conta: a linha do tempo e os impulsos de cada nó.
     let mut trechos_rep: Vec<Vec<Vec<Trecho>>> = vec![Vec::new(); n];
     let mut impulsos_rep: Vec<Vec<(Time, f64)>> = vec![Vec::new(); n];
@@ -312,6 +332,7 @@ pub fn avaliar(
                 l.1 += e;
             }
             pecas[r] = m.saidas;
+            entradas_no[r][indice] = m.entradas;
             for ep in &d.energy_per {
                 let (k, conta, g) = match ep.driver {
                     EventDriver::Item => (0, Some(m.entradas), Grupo::Produzindo),
@@ -338,6 +359,8 @@ pub fn avaliar(
                     ),
                     Driver::Setup => m.setups,
                     Driver::Startup => m.partidas,
+                    Driver::Scrap => mats[r].as_ref().map(|x| x.refugadas[indice]),
+                    Driver::Mass => mats[r].as_ref().map(|x| x.massa_entrada[indice]),
                     _ => None,
                 };
                 if let Some(dir) = dir {
@@ -401,13 +424,13 @@ pub fn avaliar(
         }
         for f in &d.flows {
             let chave = match f.driver {
-                Driver::Scrap => "refugo",
+                Driver::Scrap if !com_rastro => "refugo",
                 Driver::Rework => "retrabalho",
                 Driver::Setup if !com_rastro => "setup",
                 Driver::Startup if !com_rastro => "partida",
                 Driver::Distance { .. } => "distancia",
                 Driver::Volume => "volume",
-                Driver::Mass => "massa",
+                Driver::Mass if !com_rastro => "massa",
                 _ => continue,
             };
             pend(chave);
@@ -421,11 +444,8 @@ pub fn avaliar(
             if q.iter().all(|x| *x == 0.0) {
                 return;
             }
-            match cat
-                .fator(fluxo)
-                .and_then(|f| f.kg_co2e.map(|k| (f.scope, k)))
-            {
-                Some((s, k)) => {
+            match crate::balanco::fator_do_fluxo(lateral, fluxo) {
+                Ok((k, s)) => {
                     let sv = escopo.entry(s).or_insert_with(|| vec![0.0; n]);
                     for (r, x) in q.iter().enumerate() {
                         co2[r] += x * k;
@@ -435,7 +455,7 @@ pub fn avaliar(
                         usados.push(fluxo.to_string());
                     }
                 }
-                None => falta.push(fluxo.to_string()),
+                Err(x) => falta.push(x),
             }
         };
         match &eletrico {
@@ -457,6 +477,13 @@ pub fn avaliar(
                     .sum()
             })
             .collect();
+
+        for r in 0..n {
+            kwh_no[r][indice] = kwh[r];
+        }
+        if !fluxos.is_empty() {
+            fluxos_no.insert(indice, fluxos.clone());
+        }
 
         // Métricas com nome.
         if tem_bloco {
@@ -566,6 +593,10 @@ pub fn avaliar(
                 .iter()
                 .map(|(f, v)| (f.clone(), Indicador::de(v)))
                 .collect(),
+            agua_m3: None,
+            efluente_m3: None,
+            residuo_kg: None,
+            sucata_kg: None,
         });
     }
 
@@ -585,6 +616,26 @@ pub fn avaliar(
                 .sum()
         })
         .collect();
+
+    // Água, efluentes, resíduos, massa, mochila e custos (fase AM5).
+    crate::balanco::completar(
+        &crate::balanco::Entrada {
+            lateral,
+            nomes: &nomes,
+            mats: &mats,
+            fluxos_no: &fluxos_no,
+            kwh_no: &kwh_no,
+            entradas_no: &entradas_no,
+        },
+        &mut crate::balanco::Fabrica {
+            met: &mut met,
+            kwh: &mut fab_kwh,
+            co2: &mut fab_co2,
+            escopo: &mut fab_escopo,
+            falta: &mut fab_falta,
+        },
+        &mut inv,
+    );
 
     for r in 0..n {
         push(&mut met, "ambiental.energia_kwh".into(), fab_kwh[r]);

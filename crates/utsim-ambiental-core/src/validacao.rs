@@ -48,6 +48,8 @@ impl Problema {
         "sem_fluxo_eletrico",
         "fluxo_repetido",
         "escopo_invalido",
+        "destino_inexistente",
+        "unidade_agua",
     ];
 }
 
@@ -93,6 +95,12 @@ impl fmt::Display for Problema {
             }
             "fluxo_repetido" => format!("o fluxo {} aparece duas vezes no catálogo", a("fluxo")),
             "escopo_invalido" => format!("o fator de {} tem escopo fora de 1, 2 ou 3", a("fluxo")),
+            "destino_inexistente" => format!(
+                "{}: o destino {} não está no catálogo",
+                a("no"),
+                a("destino")
+            ),
+            "unidade_agua" => format!("o fluxo de água {} precisa estar em L ou m3", a("fluxo")),
             outra => outra.to_string(),
         };
         f.write_str(&t)
@@ -132,7 +140,30 @@ pub fn validar(modelo: &Model, lateral: &Lateral) -> Vec<Problema> {
             v.push(Problema::erro("intervalo_zero", &[]));
         }
     }
-    let tem_massa = false; // `mass_kg` ainda não existe nos tipos de item (fase AM5).
+    let tem_massa = !cat.item_mass_kg.is_empty();
+    let destino_de_residuo = |d: &str| cat.waste_destinations.iter().any(|x| x.name == d);
+    for f in &cat.flows {
+        if f.kind == FlowKind::Water && crate::materiais::em_m3(&f.unit).is_none() {
+            v.push(Problema::aviso("unidade_agua", &[("fluxo", &f.name)]));
+        }
+        if f.kind == FlowKind::Waste
+            && let Some(d) = &f.destination
+            && !destino_de_residuo(d)
+        {
+            v.push(Problema::aviso(
+                "destino_inexistente",
+                &[("no", &f.name), ("destino", d)],
+            ));
+        }
+    }
+    if let Some(d) = &cat.scrap_destination
+        && !destino_de_residuo(d)
+    {
+        v.push(Problema::aviso(
+            "destino_inexistente",
+            &[("no", "sucata"), ("destino", d)],
+        ));
+    }
 
     for (no, d) in &lateral.objects {
         if !existe(no) {
@@ -211,6 +242,17 @@ pub fn validar(modelo: &Model, lateral: &Lateral) -> Vec<Problema> {
             }
         }
         if let Some(e) = &d.effluent {
+            if !cat
+                .effluent
+                .destinations
+                .iter()
+                .any(|x| x.name == e.destination)
+            {
+                v.push(Problema::aviso(
+                    "destino_inexistente",
+                    &[("no", no), ("destino", &e.destination)],
+                ));
+            }
             for p in e.concentration.keys() {
                 if !cat.effluent.parameters.iter().any(|q| &q.name == p) {
                     v.push(Problema::erro(

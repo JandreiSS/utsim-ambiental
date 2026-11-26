@@ -18,6 +18,8 @@ pub enum Medida {
     Energia,
     SemValor,
     Co2,
+    Agua,
+    Residuos,
 }
 
 /// O estado da tela (o que está escolhido), fora do projeto.
@@ -49,6 +51,10 @@ impl Medida {
         match (self, por_peca) {
             (Medida::Co2, false) => tx("un-kg_co2e"),
             (Medida::Co2, true) => tx("un-kg_co2e_peca"),
+            (Medida::Agua, false) => tx("un-m3"),
+            (Medida::Agua, true) => tx("un-m3_peca"),
+            (Medida::Residuos, false) => tx("un-kg"),
+            (Medida::Residuos, true) => tx("un-kg_peca"),
             (_, false) => tx("un-kwh"),
             (_, true) => tx("un-kwh_peca"),
         }
@@ -65,6 +71,13 @@ fn valor(n: &NoInventario, m: Medida, por_peca: bool) -> Option<f64> {
         Medida::Energia => n.energia.media,
         Medida::SemValor => n.sem_valor.media,
         Medida::Co2 => n.co2e.valor()?.media,
+        Medida::Agua => n.agua_m3?.media,
+        Medida::Residuos => {
+            if n.residuo_kg.is_none() && n.sucata_kg.is_none() {
+                return None;
+            }
+            n.residuo_kg.map_or(0.0, |x| x.media) + n.sucata_kg.map_or(0.0, |x| x.media)
+        }
     };
     if por_peca {
         (n.pecas.media > 0.0).then(|| total / n.pecas.media)
@@ -126,8 +139,20 @@ impl Vista {
             });
         });
         ui.horizontal(|ui| {
-            let medidas = [Medida::Energia, Medida::SemValor, Medida::Co2];
-            let nomes = [tx("fab-energia"), tx("fab-sem_valor"), tx("fab-co2e")];
+            let medidas = [
+                Medida::Energia,
+                Medida::SemValor,
+                Medida::Co2,
+                Medida::Agua,
+                Medida::Residuos,
+            ];
+            let nomes = [
+                tx("fab-energia"),
+                tx("fab-sem_valor"),
+                tx("fab-co2e"),
+                tx("fab-agua"),
+                tx("fab-residuos"),
+            ];
             let atual = medidas.iter().position(|m| *m == self.medida);
             for (i, r) in utsim_ui_tema::widgets::segmented(ui, &nomes, atual)
                 .into_iter()
@@ -733,6 +758,7 @@ impl Vista {
                     ui.end_row();
                 });
         }
+        self.painel_am5(ui, inv);
         for f in &inv.fatores_sem_fonte {
             selo(
                 ui,
@@ -891,6 +917,23 @@ impl Vista {
                     ui.label(f);
                     ui.label(format!("{} {un}", com_intervalo(q)));
                     ui.end_row();
+                }
+            });
+        egui::Grid::new("am5_no")
+            .num_columns(2)
+            .spacing([12.0, 4.0])
+            .show(ui, |ui| {
+                for (rotulo, v, un) in [
+                    (tx("fab-agua"), n.agua_m3, tx("un-m3")),
+                    (tx("fab-efluente"), n.efluente_m3, tx("un-m3")),
+                    (tx("fab-residuo_processo"), n.residuo_kg, tx("un-kg")),
+                    (tx("fab-sucata"), n.sucata_kg, tx("un-kg")),
+                ] {
+                    if let Some(v) = v {
+                        ui.label(rotulo);
+                        ui.label(format!("{} {un}", com_intervalo(&v)));
+                        ui.end_row();
+                    }
                 }
             });
         if ui.button(tx("fab-de_onde_veio")).clicked() {
@@ -1222,5 +1265,185 @@ pub fn tx_preco(campo: &str) -> &'static str {
         "price_kwh_off_peak" => tx("fat-preco_fora"),
         "price_kw" => tx("fat-preco_kw"),
         _ => tx("fat-preco_ultra"),
+    }
+}
+
+impl Vista {
+    /// Água e efluentes, resíduos, massa e mochila do refugo, e custo (fase AM5).
+    fn painel_am5(&mut self, ui: &mut egui::Ui, inv: &Inventario) {
+        let linha = |ui: &mut egui::Ui, r: &str, v: String| {
+            ui.label(r);
+            ui.label(v);
+            ui.end_row();
+        };
+        if let Some(a) = &inv.agua {
+            ui.separator();
+            ui.label(egui::RichText::new(tx("fab-agua_e_efluentes")).strong());
+            egui::Grid::new("agua")
+                .num_columns(2)
+                .spacing([12.0, 4.0])
+                .show(ui, |ui| {
+                    linha(
+                        ui,
+                        tx("fab-captacao"),
+                        format!("{} {}", com_intervalo(&a.captacao_m3), tx("un-m3")),
+                    );
+                    linha(
+                        ui,
+                        tx("fab-consumo"),
+                        format!("{} {}", com_intervalo(&a.consumo_m3), tx("un-m3")),
+                    );
+                    linha(
+                        ui,
+                        tx("fab-reuso"),
+                        format!("{} %", com_intervalo(&a.reuso_pct)),
+                    );
+                    linha(
+                        ui,
+                        tx("fab-efluente"),
+                        format!("{} {}", com_intervalo(&a.efluente_m3), tx("un-m3")),
+                    );
+                    if a.tratamento_kwh.media > 0.0 {
+                        linha(
+                            ui,
+                            tx("fab-tratamento"),
+                            format!("{} {}", com_intervalo(&a.tratamento_kwh), tx("un-kwh")),
+                        );
+                    }
+                    if a.lodo_kg.media > 0.0 {
+                        linha(
+                            ui,
+                            tx("fab-lodo"),
+                            format!("{} {}", com_intervalo(&a.lodo_kg), tx("un-kg")),
+                        );
+                    }
+                });
+            for c in &a.cargas {
+                let acima = c.limite.is_some_and(|l| c.concentracao.media > l);
+                let texto = fx(
+                    "fab-carga",
+                    &[
+                        ("parametro", vx(&c.parametro)),
+                        ("antes", vx(&com_intervalo(&c.antes_kg))),
+                        ("depois", vx(&com_intervalo(&c.depois_kg))),
+                        ("mgl", vx(&com_intervalo(&c.concentracao))),
+                    ],
+                );
+                let cor = if acima { colors::ERROR } else { colors::TEXT };
+                let r = ui.colored_label(cor, texto);
+                if let Some(l) = c.limite {
+                    r.on_hover_text(fx(
+                        "fab-limite",
+                        &[
+                            ("limite", vx(&num(l, casas(l)))),
+                            ("fonte", vx(&c.fonte_limite)),
+                        ],
+                    ));
+                }
+            }
+        }
+        if let Some(r) = &inv.residuos {
+            ui.separator();
+            ui.label(egui::RichText::new(tx("fab-residuos")).strong());
+            egui::Grid::new("residuos")
+                .num_columns(2)
+                .spacing([12.0, 4.0])
+                .show(ui, |ui| {
+                    linha(
+                        ui,
+                        tx("fab-total"),
+                        format!("{} {}", com_intervalo(&r.total_kg), tx("un-kg")),
+                    );
+                    linha(
+                        ui,
+                        tx("fab-desvio_aterro"),
+                        format!("{} %", com_intervalo(&r.desvio_pct)),
+                    );
+                    for (d, kg, desviado) in &r.por_destino {
+                        let nome = if d == utsim_ambiental_core::balanco::SEM_DESTINO {
+                            tx("fab-sem_destino").to_string()
+                        } else if *desviado {
+                            format!("{d} ✓")
+                        } else {
+                            d.clone()
+                        };
+                        linha(ui, &nome, format!("{} {}", com_intervalo(kg), tx("un-kg")));
+                    }
+                });
+        }
+        if let Some(m) = &inv.materiais {
+            ui.separator();
+            ui.label(egui::RichText::new(tx("fab-materiais")).strong());
+            egui::Grid::new("materiais")
+                .num_columns(2)
+                .spacing([12.0, 4.0])
+                .show(ui, |ui| {
+                    linha(
+                        ui,
+                        tx("fab-entrada_massa"),
+                        format!("{} {}", com_intervalo(&m.entrada_kg), tx("un-kg")),
+                    );
+                    linha(
+                        ui,
+                        tx("fab-massa_boa"),
+                        format!("{} {}", com_intervalo(&m.boa_kg), tx("un-kg")),
+                    );
+                    linha(
+                        ui,
+                        tx("fab-rendimento"),
+                        format!("{} %", com_intervalo(&m.rendimento_pct)),
+                    );
+                    linha(
+                        ui,
+                        tx("fab-sucata"),
+                        fx(
+                            "fab-sucata_pecas",
+                            &[
+                                ("kg", vx(&com_intervalo(&m.sucata_kg))),
+                                ("pecas", vx(&com_intervalo(&m.refugadas))),
+                            ],
+                        ),
+                    );
+                    ui.label(tx("fab-balanco"));
+                    if m.erro_pct.media < 0.5 {
+                        ui.colored_label(colors::SUCCESS, tx("fab-balanco_fecha"));
+                    } else {
+                        ui.colored_label(
+                            colors::WARNING,
+                            fx(
+                                "fab-balanco_erro",
+                                &[("pct", vx(&num(m.erro_pct.media, 2)))],
+                            ),
+                        );
+                    }
+                    ui.end_row();
+                    if m.refugadas.media > 0.0 {
+                        linha(
+                            ui,
+                            tx("fab-mochila_kwh"),
+                            format!("{} {}", com_intervalo(&m.mochila_kwh), tx("un-kwh")),
+                        );
+                        ui.label(tx("fab-mochila_co2e"));
+                        self.estimativa(ui, &m.mochila_co2e, tx("un-kg_co2e"));
+                        ui.end_row();
+                    }
+                });
+            if m.refugadas.media > 0.0 {
+                ui.label(
+                    egui::RichText::new(tx("fab-mochila_explica"))
+                        .color(colors::TEXT_WEAK)
+                        .small(),
+                );
+            }
+        }
+        if let Some(c) = &inv.custo {
+            ui.separator();
+            egui::Grid::new("custo")
+                .num_columns(2)
+                .spacing([12.0, 4.0])
+                .show(ui, |ui| {
+                    linha(ui, tx("fab-custo_fluxos"), com_intervalo(c));
+                });
+        }
     }
 }

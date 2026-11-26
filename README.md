@@ -33,6 +33,8 @@ O plano completo, com todas as fases (AM0 a AM16), está em
   - `rodar.rs`: as replicações com o rastro (mudanças de estado e passagens das peças).
   - `medida.rs`: horas, peças, setups, partidas e a linha do tempo de cada nó numa janela.
   - `tarifa.rs`: demanda por intervalo, pico, fator de carga e a conta de energia.
+  - `materiais.rs`: o caminho de cada peça (massa, sucata, balanço de massa).
+  - `balanco.rs`: água, efluentes, resíduos, mochila do refugo e custos.
 - `crates/utsim-ambiental-app/`: a janela (egui). Não faz conta, só desenha.
   - `app.rs`: abertura, barra lateral, rodapé. `fabrica.rs`: o mapa de calor.
     `maquinas.rs`: potência de cada máquina. `fatores.rs`: fatores de emissão.
@@ -87,10 +89,11 @@ Pronto (fases AM0 a AM3): formato e validação, energia e CO₂e por nó e por 
 estado, mapa de calor, vilões, "De onde veio", telas Máquinas e Fatores, recálculo na hora,
 "Antes e depois" com diferença pareada, curva de carga pelo rastro, "Tocar o dia", janela de
 tempo arrastável, energia por setup e por partida, desligamento em espera, relatório em
-HTML e PDF, demanda, horário de pico, fator de carga e conta de energia simulada (AM4).
+HTML e PDF, demanda, horário de pico, fator de carga e conta de energia simulada (AM4),
+massa, sucata, mochila do refugo, água, efluentes e resíduos (AM5).
 
-Próximo passo: AM5 (massa, água, resíduos e efluentes). A
-seção 8 do plano lista ideias de TCC por curso.
+Próximos passos, na ordem do plano: AM6 (Sankey de massa e energia) e AM8 (cenários), depois
+AM7 (pegada por produto) e AM9 (metas). A seção 8 do plano lista ideias de TCC por curso.
 
 ## Mudar o núcleo da família junto com o app
 

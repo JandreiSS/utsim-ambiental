@@ -316,6 +316,13 @@ pub struct EnvironmentCatalog {
     pub allocation: Allocation,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub targets: Vec<Target>,
+    /// Massa (kg) de cada tipo de item, pelo nome do tipo; `"*"` vale para as peças sem tipo
+    /// (fase AM5; vai para `item_types` quando o campo entrar na família).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub item_mass_kg: BTreeMap<String, f64>,
+    /// O destino da sucata (as peças que chegam às saídas de refugo).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scrap_destination: Option<String>,
 }
 
 impl EnvironmentCatalog {

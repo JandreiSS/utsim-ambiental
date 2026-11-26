@@ -9,9 +9,11 @@
 //!
 //! Este crate não conhece a janela: o app (`utsim-ambiental-app`) só desenha o que sai daqui.
 
+pub mod balanco;
 pub mod conta;
 pub mod formato;
 pub mod mapa;
+pub mod materiais;
 pub mod medida;
 pub mod rodar;
 pub mod tarifa;

@@ -115,7 +115,7 @@ pub fn ui(ui: &mut egui::Ui, p: &mut Projeto) -> Option<(String, bool)> {
     egui::ScrollArea::both().show(ui, |ui| {
         egui::Grid::new("fatores")
             .striped(true)
-            .num_columns(9)
+            .num_columns(11)
             .spacing([10.0, 6.0])
             .show(ui, |ui| {
                 for c in [
@@ -127,12 +127,19 @@ pub fn ui(ui: &mut egui::Ui, p: &mut Projeto) -> Option<(String, bool)> {
                     tx("fat-fonte"),
                     tx("fat-ano"),
                     tx("fat-didatico"),
+                    tx("fat-preco"),
+                    tx("fat-destino"),
                     "",
                 ] {
                     ui.label(egui::RichText::new(c).strong());
                 }
                 ui.end_row();
                 let fluxos: Vec<FlowDef> = cat.flows.clone();
+                let destinos: Vec<String> = cat
+                    .waste_destinations
+                    .iter()
+                    .map(|w| w.name.clone())
+                    .collect();
                 for (i, f) in fluxos.iter().enumerate() {
                     ui.label(&f.name);
                     ui.label(tx_tipo(f.kind));
@@ -195,6 +202,33 @@ pub fn ui(ui: &mut egui::Ui, p: &mut Projeto) -> Option<(String, bool)> {
                         mudou = true;
                     }
                     mudou |= ui.checkbox(&mut fa.didactic, "").changed();
+                    let mut preco = cat.prices.get(&f.name).copied();
+                    if opcional(ui, &mut preco, 0.01) {
+                        match preco {
+                            Some(v) => cat.prices.insert(f.name.clone(), v),
+                            None => cat.prices.remove(&f.name),
+                        };
+                        mudou = true;
+                    }
+                    if f.kind == FlowKind::Waste {
+                        let mut dest = f.destination.clone();
+                        egui::ComboBox::from_id_salt(("destino", i))
+                            .selected_text(dest.clone().unwrap_or_else(|| "–".into()))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut dest, None, "–");
+                                for w in &destinos {
+                                    ui.selectable_value(&mut dest, Some(w.clone()), w);
+                                }
+                            });
+                        if dest != f.destination
+                            && let Some(x) = cat.flows.iter_mut().find(|x| x.name == f.name)
+                        {
+                            x.destination = dest;
+                            mudou = true;
+                        }
+                    } else {
+                        ui.label("");
+                    }
                     // O fluxo de energia elétrica fica: é nele que a potência vira emissão.
                     let eletrico = f.kind == FlowKind::Energy
                         && fluxos.iter().position(|x| x.kind == FlowKind::Energy) == Some(i);
@@ -256,6 +290,9 @@ pub fn ui(ui: &mut egui::Ui, p: &mut Projeto) -> Option<(String, bool)> {
     ui.add_space(12.0);
     ui.separator();
     mudou |= tarifa(ui, p);
+    ui.add_space(12.0);
+    ui.separator();
+    mudou |= materiais(ui, p);
     if mudou {
         p.recalcular();
     }
@@ -365,5 +402,249 @@ fn tarifa(ui: &mut egui::Ui, p: &mut Projeto) -> bool {
             });
             ui.end_row();
         });
+    mudou
+}
+
+/// Massa das peças, destinos de resíduo e efluente (fase AM5).
+fn materiais(ui: &mut egui::Ui, p: &mut Projeto) -> bool {
+    use utsim_ambiental_core::formato::{EffluentDestination, Parameter, WasteDestination};
+    let mut mudou = false;
+    let tipos: Vec<String> = std::iter::once(utsim_ambiental_core::materiais::QUALQUER.to_string())
+        .chain(p.modelo.item_types.iter().map(|t| t.name.clone()))
+        .collect();
+    let cat = &mut p.lateral.environment;
+
+    ui.heading(tx("fat-massa"));
+    ui.label(egui::RichText::new(tx("fat-massa_explica")).color(colors::TEXT_WEAK));
+    egui::Grid::new("massas")
+        .num_columns(2)
+        .spacing([12.0, 4.0])
+        .show(ui, |ui| {
+            for t in &tipos {
+                let nome = if t == utsim_ambiental_core::materiais::QUALQUER {
+                    tx("fat-qualquer_peca").to_string()
+                } else {
+                    t.clone()
+                };
+                ui.label(nome);
+                let mut v = cat.item_mass_kg.get(t).copied();
+                if opcional(ui, &mut v, 0.01) {
+                    match v {
+                        Some(x) => cat.item_mass_kg.insert(t.clone(), x),
+                        None => cat.item_mass_kg.remove(t),
+                    };
+                    mudou = true;
+                }
+                ui.end_row();
+            }
+        });
+
+    ui.add_space(10.0);
+    ui.heading(tx("fat-destinos"));
+    let mut tirar = None;
+    egui::Grid::new("destinos")
+        .striped(true)
+        .num_columns(6)
+        .spacing([10.0, 4.0])
+        .show(ui, |ui| {
+            for c in [
+                tx("fat-destino"),
+                tx("fat-desviado"),
+                tx("fat-fator_kg"),
+                tx("fat-custo_kg"),
+                tx("fat-fonte"),
+                "",
+            ] {
+                ui.label(egui::RichText::new(c).strong());
+            }
+            ui.end_row();
+            for (k, w) in cat.waste_destinations.iter_mut().enumerate() {
+                ui.label(&w.name);
+                mudou |= ui.checkbox(&mut w.diverted, "").changed();
+                mudou |= opcional(ui, &mut w.kg_co2e, 0.001);
+                mudou |= opcional(ui, &mut w.cost, 0.01);
+                mudou |= ui
+                    .add(egui::TextEdit::singleline(&mut w.source).desired_width(180.0))
+                    .changed();
+                if ui.small_button(tx("fat-tirar")).clicked() {
+                    tirar = Some(k);
+                }
+                ui.end_row();
+            }
+        });
+    if let Some(k) = tirar {
+        cat.waste_destinations.remove(k);
+        mudou = true;
+    }
+    let id = egui::Id::new("fatores-novo-destino");
+    let mut novo: String = ui.data_mut(|d| d.get_temp(id)).unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.add(egui::TextEdit::singleline(&mut novo).desired_width(160.0));
+        let nome = novo.trim().to_string();
+        let ok = !nome.is_empty() && !cat.waste_destinations.iter().any(|w| w.name == nome);
+        if ui
+            .add_enabled(ok, egui::Button::new(tx("fat-novo_destino")))
+            .clicked()
+        {
+            cat.waste_destinations.push(WasteDestination {
+                name: nome,
+                diverted: false,
+                kg_co2e: None,
+                cost: None,
+                source: utsim_ambiental_core::formato::A_DEFINIR.into(),
+            });
+            novo.clear();
+            mudou = true;
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(id, novo));
+    ui.horizontal(|ui| {
+        ui.label(tx("fat-destino_sucata"));
+        let mut dest = cat.scrap_destination.clone();
+        egui::ComboBox::from_id_salt("destino_sucata")
+            .selected_text(dest.clone().unwrap_or_else(|| "–".into()))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut dest, None, "–");
+                for w in &cat.waste_destinations {
+                    ui.selectable_value(&mut dest, Some(w.name.clone()), &w.name);
+                }
+            });
+        if dest != cat.scrap_destination {
+            cat.scrap_destination = dest;
+            mudou = true;
+        }
+    });
+
+    ui.add_space(10.0);
+    ui.heading(tx("fat-efluente"));
+    ui.label(egui::RichText::new(tx("fat-efluente_explica")).color(colors::TEXT_WEAK));
+    ui.label(egui::RichText::new(tx("fat-parametros")).strong());
+    let mut tirar = None;
+    egui::Grid::new("parametros")
+        .striped(true)
+        .num_columns(5)
+        .spacing([10.0, 4.0])
+        .show(ui, |ui| {
+            for c in [
+                tx("fat-parametro"),
+                tx("fat-unidade"),
+                tx("fat-limite"),
+                tx("fat-fonte_limite"),
+                "",
+            ] {
+                ui.label(egui::RichText::new(c).strong());
+            }
+            ui.end_row();
+            for (k, x) in cat.effluent.parameters.iter_mut().enumerate() {
+                ui.label(&x.name);
+                ui.label(&x.unit);
+                mudou |= opcional(ui, &mut x.limit, 1.0);
+                mudou |= ui
+                    .add(egui::TextEdit::singleline(&mut x.limit_source).desired_width(180.0))
+                    .changed();
+                if ui.small_button(tx("fat-tirar")).clicked() {
+                    tirar = Some(k);
+                }
+                ui.end_row();
+            }
+        });
+    if let Some(k) = tirar {
+        cat.effluent.parameters.remove(k);
+        mudou = true;
+    }
+    let id = egui::Id::new("fatores-novo-parametro");
+    let mut novo: String = ui.data_mut(|d| d.get_temp(id)).unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.add(egui::TextEdit::singleline(&mut novo).desired_width(160.0));
+        let nome = novo.trim().to_string();
+        let ok = !nome.is_empty() && !cat.effluent.parameters.iter().any(|w| w.name == nome);
+        if ui
+            .add_enabled(ok, egui::Button::new(tx("fat-novo_parametro")))
+            .clicked()
+        {
+            cat.effluent.parameters.push(Parameter {
+                name: nome,
+                unit: "mg/L".into(),
+                limit: None,
+                limit_source: utsim_ambiental_core::formato::A_DEFINIR.into(),
+            });
+            novo.clear();
+            mudou = true;
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(id, novo));
+
+    ui.add_space(6.0);
+    ui.label(egui::RichText::new(tx("fat-destinos_efluente")).strong());
+    let params: Vec<String> = cat
+        .effluent
+        .parameters
+        .iter()
+        .map(|x| x.name.clone())
+        .collect();
+    let mut tirar = None;
+    for (k, x) in cat.effluent.destinations.iter_mut().enumerate() {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(egui::RichText::new(&x.name).strong());
+            ui.label(tx("fat-kwh_m3"));
+            mudou |= ui
+                .add(
+                    egui::DragValue::new(&mut x.kwh_per_m3)
+                        .range(0.0..=1.0e4)
+                        .speed(0.01),
+                )
+                .changed();
+            ui.label(tx("fat-lodo_m3"));
+            mudou |= ui
+                .add(
+                    egui::DragValue::new(&mut x.sludge_kg_per_m3)
+                        .range(0.0..=1.0e4)
+                        .speed(0.01),
+                )
+                .changed();
+            ui.label(tx("fat-custo_m3"));
+            mudou |= opcional(ui, &mut x.cost_per_m3, 0.01);
+            for par in &params {
+                ui.label(fx("fat-remocao", &[("parametro", vx(par))]));
+                let mut v = x.removal.get(par).copied().unwrap_or(0.0);
+                if ui
+                    .add(egui::DragValue::new(&mut v).range(0.0..=1.0).speed(0.01))
+                    .changed()
+                {
+                    x.removal.insert(par.clone(), v);
+                    mudou = true;
+                }
+            }
+            if ui.small_button(tx("fat-tirar")).clicked() {
+                tirar = Some(k);
+            }
+        });
+    }
+    if let Some(k) = tirar {
+        cat.effluent.destinations.remove(k);
+        mudou = true;
+    }
+    let id = egui::Id::new("fatores-novo-destino-efl");
+    let mut novo: String = ui.data_mut(|d| d.get_temp(id)).unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.add(egui::TextEdit::singleline(&mut novo).desired_width(160.0));
+        let nome = novo.trim().to_string();
+        let ok = !nome.is_empty() && !cat.effluent.destinations.iter().any(|w| w.name == nome);
+        if ui
+            .add_enabled(ok, egui::Button::new(tx("fat-novo_destino_efluente")))
+            .clicked()
+        {
+            cat.effluent.destinations.push(EffluentDestination {
+                name: nome,
+                removal: Default::default(),
+                kwh_per_m3: 0.0,
+                sludge_kg_per_m3: 0.0,
+                cost_per_m3: None,
+            });
+            novo.clear();
+            mudou = true;
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(id, novo));
     mudou
 }

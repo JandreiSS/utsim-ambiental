@@ -54,7 +54,8 @@ fn fabrica_do_exemplo() {
     let modelo = utsim_ambiental_app::projeto::gravar_exemplo(&d.join("exemplo")).unwrap();
     app.abrir(&modelo, Some("estufa"));
     assert_eq!(app.tela, Tela::Fabrica);
-    let mut cap = Captura::new(contexto(), vec2(1440.0, 860.0));
+    let ctx = contexto();
+    let mut cap = Captura::new(ctx.clone(), vec2(1440.0, 860.0));
     let limite = Instant::now() + Duration::from_secs(120);
     loop {
         let _ = cap.imagem(1, |ui| app.draw(ui));
@@ -98,8 +99,19 @@ fn fabrica_do_exemplo() {
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_relatorios");
     app.tela = Tela::Maquinas;
+    ctx.data_mut(|d| {
+        d.insert_temp(
+            eframe::egui::Id::new("maquinas-escolhida"),
+            Some("lavadora".to_string()),
+        )
+    });
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_maquinas");
+    app.fabrica.medida = utsim_ambiental_app::fabrica::Medida::Agua;
+    app.fabrica.selecionado = Some("lavadora".into());
+    app.tela = Tela::Fabrica;
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_agua");
     app.tela = Tela::Fatores;
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_fatores");
