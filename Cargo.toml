@@ -1,0 +1,41 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+# The window (`utsim-ambiental-app`) builds with `-p` or `--workspace`.
+default-members = ["crates/utsim-ambiental-core"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+repository = "https://github.com/JandreiSS/utsim-ambiental"
+
+[workspace.dependencies]
+utsim-ambiental-core = { path = "crates/utsim-ambiental-core" }
+
+utsim-core = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
+utsim-model = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
+utsim-pasta = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
+utsim-ui-tema = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
+utsim-idiomas = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ron = "0.8"
+thiserror = "2"
+
+# The simulation is optimised even in debug builds: the tests run replications.
+# Debug builds keep only line tables and no debug info for dependencies (disk space).
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.dev.package.utsim-core]
+opt-level = 2
+
+[profile.release]
+debug = "line-tables-only"
+lto = "thin"
+codegen-units = 1

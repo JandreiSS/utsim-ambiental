@@ -1,0 +1,5 @@
+/target
+# Trava de um escritor de um modelo aberto (utsim_pasta::trava).
+.*.trava
+# Família local (scripts/familia-local.sh)
+.cargo/config.toml

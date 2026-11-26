@@ -1,0 +1,28 @@
+// Linha de pintura: lavar, pintar, curar na estufa e inspecionar. Tempos em segundos;
+// um turno de 8 horas, com meia hora de aquecimento fora da estatística.
+// O bloco ambiental (potência de cada máquina) fica ao lado, em linha_de_pintura.ambiental.ron.
+Model(
+    name: "Linha de pintura",
+    run: (stop_time: 30600.0, warmup: 1800.0, seed: 11, replications: 5),
+    objects: [
+        (name: "chegada", kind: Source(interarrival: Exp(mean: 75.0)), position: (0.0, 0.0, 0.0)),
+        (name: "fila_lavadora", kind: Queue(capacity: 10), position: (3.0, 0.0, 0.0)),
+        (name: "lavadora", kind: Processor(process: Uniform(min: 45.0, max: 65.0)), position: (6.0, 0.0, 0.0)),
+        (name: "fila_cabine", kind: Queue(capacity: 4), position: (9.0, 0.0, 0.0)),
+        (name: "cabine_de_pintura", kind: Processor(process: Triangular(min: 50.0, mode: 62.0, max: 85.0)), position: (12.0, 0.0, 0.0)),
+        (name: "fila_estufa", kind: Queue(capacity: 4), position: (12.0, 3.0, 0.0)),
+        (name: "estufa", kind: Processor(process: Triangular(min: 50.0, mode: 58.0, max: 70.0)), position: (9.0, 3.0, 0.0)),
+        (name: "inspecao", kind: Processor(process: Uniform(min: 15.0, max: 25.0)), position: (6.0, 3.0, 0.0)),
+        (name: "expedicao", kind: Sink, position: (3.0, 3.0, 0.0)),
+    ],
+    connections: [
+        ("chegada", "fila_lavadora"),
+        ("fila_lavadora", "lavadora"),
+        ("lavadora", "fila_cabine"),
+        ("fila_cabine", "cabine_de_pintura"),
+        ("cabine_de_pintura", "fila_estufa"),
+        ("fila_estufa", "estufa"),
+        ("estufa", "inspecao"),
+        ("inspecao", "expedicao"),
+    ],
+)

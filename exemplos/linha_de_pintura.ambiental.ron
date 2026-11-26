@@ -1,0 +1,42 @@
+// Bloco ambiental do modelo (UTSim Ambiental). Fica ao lado do modelo até o campo
+// `environment` entrar nas bibliotecas da família (docs/formato_ambiental.md).
+//
+// As potências são de exemplo, para a aula: troque pelas da placa ou do catálogo da máquina.
+// Os fatores de emissão estão "a definir" de propósito: o app não traz número de fator.
+// Informe o fator e a fonte na tela Fatores para ver o CO₂ equivalente.
+(
+    environment: (
+        clock: (start: "06:00", time_unit: Second),
+        flows: [
+            (name: "eletricidade", kind: Energy, unit: "kWh", direction: In),
+            (name: "gas_natural", kind: Fuel, unit: "m3", direction: In),
+        ],
+        factors: [
+            (flow: "eletricidade", scope: 2, kg_co2e: None, source: "a definir", year: None),
+            (flow: "gas_natural", scope: 1, kg_co2e: None, source: "a definir", year: None),
+        ],
+        allocation: ByProcessTime,
+    ),
+    objects: {
+        "lavadora": (
+            stage: Some("preparo"),
+            power: (producing: 15.0, preparing: 6.0, waiting: 9.0, stopped: 1.0, off_shift: 0.5),
+        ),
+        "cabine_de_pintura": (
+            stage: Some("pintura"),
+            power: (producing: 22.0, preparing: 10.0, waiting: 8.0, stopped: 2.0, off_shift: 0.5,
+                    by_state: {"blocked": 16.0}),
+        ),
+        "estufa": (
+            stage: Some("pintura"),
+            power: (producing: 30.0, preparing: 20.0, waiting: 24.0, stopped: 3.0, off_shift: 1.0),
+            flows: [
+                (flow: "gas_natural", amount: 4.0, driver: Time([Processing, Idle])),
+            ],
+        ),
+        "inspecao": (
+            stage: Some("expedicao"),
+            power: (producing: 1.5, waiting: 1.0),
+        ),
+    },
+)

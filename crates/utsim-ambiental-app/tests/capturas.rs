@@ -1,0 +1,80 @@
+//! Pictures of the windows drawn without a screen: the opening and the Factory screen of the
+//! example, with the oven chosen and its "Where it comes from" card open. With
+//! `UTSIM_CAPTURAS=<pasta>` the PNGs are saved there for review.
+
+use std::time::{Duration, Instant};
+
+use eframe::egui::{Context, vec2};
+use utsim_ambiental_app::{App, Tela};
+use utsim_ui_tema::captura::{Captura, Imagem};
+
+fn contexto() -> Context {
+    let ctx = Context::default();
+    utsim_ui_tema::install(&ctx);
+    utsim_ui_tema::usar_cor_do_app(&ctx, utsim_ambiental_app::app::COR_APP);
+    ctx
+}
+
+fn conferir(img: &Imagem, nome: &str) {
+    let mut cores = std::collections::BTreeSet::new();
+    for y in (0..img.height).step_by(9) {
+        for x in (0..img.width).step_by(9) {
+            cores.insert(img.pixel(x, y));
+        }
+    }
+    assert!(cores.len() > 20, "{nome}: a tela quase não pintou nada");
+    if let Some(d) = std::env::var_os("UTSIM_CAPTURAS") {
+        let d = std::path::PathBuf::from(d);
+        std::fs::create_dir_all(&d).unwrap();
+        img.salvar_png(&d.join(format!("{nome}.png"))).unwrap();
+    }
+}
+
+fn pasta(nome: &str) -> std::path::PathBuf {
+    let p = std::env::temp_dir().join(format!("utsim-ambiental-cap-{nome}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&p);
+    std::fs::create_dir_all(&p).unwrap();
+    p
+}
+
+#[test]
+fn abertura() {
+    let d = pasta("abertura");
+    let mut app = App::new(Some(d.join("cfg.json")));
+    let mut cap = Captura::new(contexto(), vec2(1280.0, 800.0));
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_abertura");
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+#[test]
+fn fabrica_do_exemplo() {
+    let d = pasta("fabrica");
+    let mut app = App::new(Some(d.join("cfg.json")));
+    let modelo = utsim_ambiental_app::projeto::gravar_exemplo(&d.join("exemplo")).unwrap();
+    app.abrir(&modelo, Some("estufa"));
+    assert_eq!(app.tela, Tela::Fabrica);
+    let mut cap = Captura::new(contexto(), vec2(1440.0, 860.0));
+    let limite = Instant::now() + Duration::from_secs(120);
+    loop {
+        let _ = cap.imagem(1, |ui| app.draw(ui));
+        if app.projeto.as_ref().is_some_and(|p| p.inventario.is_some()) {
+            break;
+        }
+        assert!(Instant::now() < limite, "a simulação não terminou a tempo");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_fabrica");
+    app.fabrica.de_onde_veio = Some("estufa".into());
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_de_onde_veio");
+    app.fabrica.de_onde_veio = None;
+    app.tela = Tela::Maquinas;
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_maquinas");
+    app.tela = Tela::Fatores;
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_fatores");
+    let _ = std::fs::remove_dir_all(&d);
+}

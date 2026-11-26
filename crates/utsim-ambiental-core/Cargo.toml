@@ -1,0 +1,21 @@
+[package]
+name = "utsim-ambiental-core"
+description = "UTSim Ambiental (núcleo): formato do bloco ambiental, validação e a conta de energia e emissão por nó a partir do relatório da simulação"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "utsim_ambiental_core"
+path = "src/lib.rs"
+
+[dependencies]
+# The run reports (time in each state, inputs, outputs) and the 95% interval.
+utsim-core.workspace = true
+# The model: objects, connections, positions; and the replications.
+utsim-model.workspace = true
+# Safe writes in a synced folder (the side file next to the model).
+utsim-pasta.workspace = true
+serde.workspace = true
+ron.workspace = true
+thiserror.workspace = true
