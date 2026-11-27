@@ -13,6 +13,9 @@ use utsim_ambiental_core::{
 };
 use utsim_model::Model;
 
+/// Onde chega o fim de uma simulação numa thread.
+type Recebe = mpsc::Receiver<Result<Vec<Rodada>, String>>;
+
 /// A base guardada para o "Antes e depois": o bloco e a conta daquele momento.
 #[derive(Clone, Debug)]
 pub struct Base {
@@ -32,7 +35,19 @@ pub struct Projeto {
     pub inventario: Option<Inventario>,
     pub base: Option<Base>,
     pub problemas: Vec<Problema>,
-    rodando: Option<mpsc::Receiver<Result<Vec<Rodada>, String>>>,
+    rodando: Option<Recebe>,
+    /// Os cenários do modelo (fase AM8) e o que já foi calculado de cada um.
+    pub estudo: utsim_ambiental_core::cenarios::Estudo,
+    cache_cenarios: std::collections::BTreeMap<String, Inventario>,
+    /// As rodadas dos cenários que mudam o modelo, pelas mudanças.
+    rodadas_cenarios: std::collections::BTreeMap<String, Vec<Rodada>>,
+    cenario_em_curso: Option<(String, Recebe)>,
+}
+
+/// A chave das mudanças de modelo de um cenário (as que pedem simular).
+fn chave_modelo(c: &utsim_ambiental_core::cenarios::Cenario) -> String {
+    let m: Vec<_> = c.alavancas.iter().filter(|a| a.precisa_simular()).collect();
+    format!("{m:?}")
 }
 
 impl Projeto {
@@ -41,6 +56,7 @@ impl Projeto {
         let modelo = Model::load(caminho).map_err(|e| e.to_string())?;
         let lateral = utsim_ambiental_core::ler_do_modelo(caminho).map_err(|e| e.to_string())?;
         let caminho = std::fs::canonicalize(caminho).unwrap_or_else(|_| caminho.to_path_buf());
+        let estudo = utsim_ambiental_core::cenarios::ler(&caminho);
         let mut p = Projeto {
             caminho,
             modelo,
@@ -52,6 +68,10 @@ impl Projeto {
             base: None,
             problemas: Vec::new(),
             rodando: None,
+            estudo,
+            cache_cenarios: Default::default(),
+            rodadas_cenarios: Default::default(),
+            cenario_em_curso: None,
         };
         p.problemas = validar(&p.modelo, &p.lateral);
         Ok(p)
@@ -97,6 +117,8 @@ impl Projeto {
                 self.rodando = None;
                 self.rodadas = r;
                 self.base = None;
+                self.cache_cenarios.clear();
+                self.rodadas_cenarios.clear();
                 self.janela = None;
                 self.recalcular();
                 Some(Ok(()))
@@ -118,6 +140,81 @@ impl Projeto {
         self.problemas = validar(&self.modelo, &self.lateral);
         self.inventario = (!self.rodadas.is_empty())
             .then(|| avaliar(&self.modelo, &self.lateral, &self.rodadas, self.janela));
+    }
+
+    /// O inventário de um cenário: recalculado sobre o rastro do Base quando só muda o bloco
+    /// ambiental; com as rodadas do cenário quando muda o modelo (`None`: falta simular).
+    pub fn avaliar_cenario(
+        &mut self,
+        c: &utsim_ambiental_core::cenarios::Cenario,
+    ) -> Result<Option<Inventario>, String> {
+        let chave = format!("{:?}|{:?}|{:?}", c.alavancas, self.lateral, self.janela);
+        if let Some(i) = self.cache_cenarios.get(&chave) {
+            return Ok(Some(i.clone()));
+        }
+        let (m, l) = utsim_ambiental_core::cenarios::aplicar(&self.modelo, &self.lateral, c)?;
+        let rodadas = if c.precisa_simular() {
+            match self.rodadas_cenarios.get(&chave_modelo(c)) {
+                Some(r) => r,
+                None => return Ok(None),
+            }
+        } else {
+            &self.rodadas
+        };
+        if rodadas.is_empty() {
+            return Ok(None);
+        }
+        let inv = avaliar(&m, &l, rodadas, self.janela);
+        if self.cache_cenarios.len() > 64 {
+            self.cache_cenarios.clear();
+        }
+        self.cache_cenarios.insert(chave, inv.clone());
+        Ok(Some(inv))
+    }
+
+    /// O cenário que muda o modelo já foi simulado?
+    pub fn cenario_simulado(&self, c: &utsim_ambiental_core::cenarios::Cenario) -> bool {
+        self.rodadas_cenarios.contains_key(&chave_modelo(c))
+    }
+
+    /// Simula o cenário numa thread, com a mesma semente do Base (comparação pareada).
+    pub fn simular_cenario(&mut self, c: &utsim_ambiental_core::cenarios::Cenario) {
+        let Ok((m, _)) = utsim_ambiental_core::cenarios::aplicar(&self.modelo, &self.lateral, c)
+        else {
+            return;
+        };
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(utsim_ambiental_core::simular(&m));
+        });
+        self.cenario_em_curso = Some((chave_modelo(c), rx));
+    }
+
+    pub fn cenario_rodando(&self) -> Option<&str> {
+        self.cenario_em_curso.as_ref().map(|x| x.0.as_str())
+    }
+
+    /// Recebe o fim da simulação de um cenário, se já terminou.
+    pub fn receber_cenario(&mut self) -> Option<Result<(), String>> {
+        let (chave, rx) = self.cenario_em_curso.as_ref()?;
+        match rx.try_recv() {
+            Ok(Ok(r)) => {
+                let chave = chave.clone();
+                self.rodadas_cenarios.insert(chave, r);
+                self.cache_cenarios.clear();
+                self.cenario_em_curso = None;
+                Some(Ok(()))
+            }
+            Ok(Err(e)) => {
+                self.cenario_em_curso = None;
+                Some(Err(e))
+            }
+            Err(mpsc::TryRecvError::Empty) => None,
+            Err(mpsc::TryRecvError::Disconnected) => {
+                self.cenario_em_curso = None;
+                Some(Err("a simulação parou sem resposta".into()))
+            }
+        }
     }
 
     /// O bloco do nó, criado vazio se ainda não existe.

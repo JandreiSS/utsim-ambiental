@@ -113,6 +113,22 @@ no pico, o fator de carga e a conta de energia simulada da janela.
 - **Relatório do estudo** grava objetivo, unidade funcional, fronteira, inventário, impacto,
   interpretação (com o efeito da regra de rateio), limitações e fatores com as fontes.
 
+## Cenários
+
+- **+ Novo cenário** cria um cenário; **+ Alavanca** acrescenta uma mudança: potência de uma
+  máquina, desligar na espera, fator de emissão, destino de um resíduo, reuso de água,
+  eficiência do tratamento, preço da energia, demanda contratada, janela de pico, ou uma
+  mudança no modelo (por exemplo `estufa.capacity = 2`).
+- As alavancas do bloco ambiental são recalculadas na hora. A mudança no modelo pede
+  **Simular este cenário**: o app roda as replicações com a mesma semente do Base, e a
+  comparação é pareada.
+- A tabela mostra custo e impacto (CO₂e, energia ou água) de cada cenário e a diferença para
+  o Base com intervalo de 95 %: **melhor**, **pior** ou **não dá para afirmar**.
+- A dispersão custo × impacto liga os cenários que não perdem nos dois critérios.
+- Com o **investimento**, a vida útil e as **horas de operação por ano**, o app calcula o
+  retorno simples e o custo por tonelada de CO₂e evitada.
+- **Salvar cenários** grava `<modelo>.cenarios_ambientais.json` ao lado do modelo.
+
 ## Salvar
 
 **Salvar** grava o bloco ambiental num arquivo ao lado do modelo (`<modelo>.ambiental.ron`).

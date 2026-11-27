@@ -134,6 +134,32 @@ fn fabrica_do_exemplo() {
     app.tela = Tela::Produto;
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_produto");
+    {
+        let p = app.projeto.as_mut().unwrap();
+        p.estudo
+            .cenarios
+            .push(utsim_ambiental_core::cenarios::Cenario {
+                nome: "Estufa desliga na espera".into(),
+                alavancas: vec![utsim_ambiental_core::cenarios::Alavanca::Desligamento {
+                    no: "estufa".into(),
+                    depois: Some(120.0),
+                }],
+                investimento: Some(5000.0),
+                vida_anos: Some(10.0),
+            });
+        p.estudo.horas_por_ano = Some(4000.0);
+        let mut t = p.lateral.environment.tariff.clone().unwrap();
+        t.price_kwh_peak = Some(1.2);
+        t.price_kwh_off_peak = Some(0.6);
+        t.price_kw = Some(30.0);
+        t.price_kw_overrun = Some(60.0);
+        p.lateral.environment.tariff = Some(t);
+        p.recalcular();
+    }
+    app.tela = Tela::Cenarios;
+    app.cenarios.impacto = utsim_ambiental_app::cenarios::Impacto::Energia;
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_cenarios");
     app.tela = Tela::Fatores;
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_fatores");

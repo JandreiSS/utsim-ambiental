@@ -88,7 +88,7 @@ impl PowerDef {
 }
 
 /// Os cinco grupos de estado da potência (plano 2.2).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Grupo {
     /// Energia que agrega valor.
     Produzindo,

@@ -17,5 +17,7 @@ utsim-model.workspace = true
 # Safe writes in a synced folder (the side file next to the model).
 utsim-pasta.workspace = true
 serde.workspace = true
+# The scenarios file next to the model.
+serde_json.workspace = true
 ron.workspace = true
 thiserror.workspace = true
