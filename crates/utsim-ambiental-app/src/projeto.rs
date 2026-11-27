@@ -16,6 +16,15 @@ use utsim_model::Model;
 /// Onde chega o fim de uma simulação numa thread.
 type Recebe = mpsc::Receiver<Result<Vec<Rodada>, String>>;
 
+/// Onde mora o bloco ambiental do modelo aberto.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Origem {
+    /// No arquivo ao lado do modelo (`<modelo>.ambiental.ron`).
+    Lateral,
+    /// Dentro do modelo (`environment`), também editado na aba Ambiental do UTSim.
+    Modelo,
+}
+
 /// A base guardada para o "Antes e depois": o bloco e a conta daquele momento.
 #[derive(Clone, Debug)]
 pub struct Base {
@@ -25,6 +34,7 @@ pub struct Base {
 
 pub struct Projeto {
     pub caminho: PathBuf,
+    pub origem: Origem,
     pub modelo: Model,
     pub lateral: Lateral,
     /// O bloco como está gravado, para saber se há mudança a salvar.
@@ -60,12 +70,19 @@ impl Projeto {
     /// Abre o modelo e o arquivo lateral (sem ele, o catálogo inicial).
     pub fn abrir(caminho: &Path) -> Result<Projeto, String> {
         let modelo = Model::load(caminho).map_err(|e| e.to_string())?;
-        let lateral = utsim_ambiental_core::ler_do_modelo(caminho).map_err(|e| e.to_string())?;
+        let (lateral, origem) = match Lateral::do_modelo(&modelo) {
+            Some(l) => (l, Origem::Modelo),
+            None => (
+                utsim_ambiental_core::ler_do_modelo(caminho).map_err(|e| e.to_string())?,
+                Origem::Lateral,
+            ),
+        };
         let caminho = std::fs::canonicalize(caminho).unwrap_or_else(|_| caminho.to_path_buf());
         let estudo = utsim_ambiental_core::cenarios::ler(&caminho);
         let caminho_leituras = caminho.clone();
         let mut p = Projeto {
             caminho,
+            origem,
             modelo,
             salvo: lateral.clone(),
             lateral,
@@ -237,8 +254,126 @@ impl Projeto {
         self.lateral != self.salvo
     }
 
-    /// Grava o arquivo lateral ao lado do modelo.
+    /// Há um arquivo lateral que pode ir para dentro do modelo.
+    pub fn pode_migrar(&self) -> bool {
+        self.origem == Origem::Lateral
+            && utsim_ambiental_core::caminho_lateral(&self.caminho).is_file()
+    }
+
+    /// Relê o modelo e o bloco do disco (o UTSim ou outra pessoa pode ter mudado). Mantém a
+    /// conta de agora até a próxima simulação.
+    pub fn recarregar(&mut self) -> Result<(), String> {
+        if self.mudou() {
+            return Ok(());
+        }
+        let novo = Projeto::abrir(&self.caminho)?;
+        self.modelo = novo.modelo;
+        self.origem = novo.origem;
+        self.lateral = novo.lateral.clone();
+        self.salvo = novo.lateral;
+        self.recalcular();
+        Ok(())
+    }
+
+    /// Leva o bloco do arquivo lateral para dentro do modelo e guarda o arquivo lateral como
+    /// `.bak`. Devolve o caminho do modelo.
+    pub fn migrar(&mut self) -> Result<PathBuf, String> {
+        self.origem = Origem::Modelo;
+        match self.gravar_no_modelo() {
+            Ok(c) => {
+                let lat = utsim_ambiental_core::caminho_lateral(&self.caminho);
+                let bak = lat.with_extension("ron.bak");
+                let _ = std::fs::rename(&lat, bak);
+                Ok(c)
+            }
+            Err(e) => {
+                self.origem = Origem::Lateral;
+                Err(e)
+            }
+        }
+    }
+
+    /// Grava o bloco dentro do modelo: pega a trava do modelo (um escritor por vez), aplica
+    /// os comandos num passo só e solta a trava.
+    fn gravar_no_modelo(&mut self) -> Result<PathBuf, String> {
+        use utsim_edit::{Command, Document};
+        use utsim_pasta::trava;
+        let pessoa = std::env::var("USERNAME")
+            .or_else(|_| std::env::var("USER"))
+            .unwrap_or_else(|_| "pessoa".into());
+        let maquina = std::env::var("COMPUTERNAME")
+            .or_else(|_| std::env::var("HOSTNAME"))
+            .unwrap_or_else(|_| "maquina".into());
+        match trava::travar(
+            &self.caminho,
+            "ambiental",
+            &pessoa,
+            &maquina,
+            trava::agora_ms(),
+        )
+        .map_err(|e| e.to_string())?
+        {
+            trava::Estado::Minha => {}
+            trava::Estado::DeOutro(t) => {
+                return Err(format!(
+                    "o modelo está sendo editado por {} em {} ({})",
+                    t.pessoa, t.maquina, t.app
+                ));
+            }
+        }
+        let resultado = (|| -> Result<PathBuf, String> {
+            let mut doc = Document::open(&self.caminho).map_err(|e| e.to_string())?;
+            let m = doc.model().clone();
+            let mut cmds = Vec::new();
+            for o in &m.objects {
+                let quer = self
+                    .lateral
+                    .objects
+                    .get(&o.name)
+                    .filter(|d| **d != EnvironmentDef::default())
+                    .map(|d| Box::new(d.clone()));
+                if o.environment != quer {
+                    cmds.push(Command::SetEnvironment {
+                        name: o.name.clone(),
+                        environment: quer,
+                    });
+                }
+            }
+            let cat = Some(Box::new(self.lateral.catalogo_para_o_modelo(&m)));
+            if m.environment != cat {
+                cmds.push(Command::SetEnvironmentCatalog { environment: cat });
+            }
+            for t in &m.item_types {
+                let k = self.lateral.environment.item_mass_kg.get(&t.name).copied();
+                if t.mass_kg != k {
+                    cmds.push(Command::SetItemMass {
+                        item_type: t.name.clone(),
+                        mass_kg: k,
+                    });
+                }
+            }
+            if !cmds.is_empty() {
+                doc.apply(Command::Batch(cmds))?;
+                doc.save().map_err(|e| e.to_string())?;
+            }
+            self.modelo = doc.model().clone();
+            Ok(self.caminho.clone())
+        })();
+        let _ = trava::soltar(&self.caminho, "ambiental", &pessoa, &maquina);
+        if resultado.is_ok() {
+            self.lateral
+                .objects
+                .retain(|_, d| d != &EnvironmentDef::default());
+            self.salvo = self.lateral.clone();
+        }
+        resultado
+    }
+
+    /// Grava o bloco: dentro do modelo ou no arquivo ao lado, onde ele mora.
     pub fn gravar(&mut self) -> Result<PathBuf, String> {
+        if self.origem == Origem::Modelo {
+            return self.gravar_no_modelo();
+        }
         // Blocos vazios não vão para o arquivo.
         self.lateral
             .objects
@@ -312,6 +447,35 @@ mod testes {
             }
         }
         assert!(!utsim_ambiental_core::viloes(inv, 3).is_empty());
+        let _ = std::fs::remove_dir_all(&pasta);
+    }
+
+    /// O bloco vai do arquivo lateral para dentro do modelo: o modelo reaberto traz o mesmo
+    /// bloco, a conta dá o mesmo número, e a edição seguinte grava no modelo.
+    #[test]
+    fn migrar_para_o_modelo() {
+        let pasta = pasta_temp("migrar");
+        let c = gravar_exemplo(&pasta).unwrap();
+        let mut p = Projeto::abrir(&c).unwrap();
+        assert_eq!(p.origem, Origem::Lateral);
+        assert!(p.pode_migrar());
+        p.simular_agora().unwrap();
+        let antes = p.inventario.as_ref().unwrap().metricas.clone();
+        p.migrar().unwrap();
+        assert!(!utsim_ambiental_core::caminho_lateral(&c).exists());
+        let mut q = Projeto::abrir(&c).unwrap();
+        assert_eq!(q.origem, Origem::Modelo);
+        assert_eq!(q.lateral, p.lateral);
+        q.simular_agora().unwrap();
+        assert_eq!(q.inventario.as_ref().unwrap().metricas, antes);
+        // Uma edição grava no modelo, com a trava, e a trava é solta.
+        q.bloco_mut("estufa").power.waiting = 5.0;
+        q.gravar().unwrap();
+        assert!(!utsim_pasta::trava::caminho(&c).exists());
+        let r = Projeto::abrir(&c).unwrap();
+        assert_eq!(r.lateral.objects["estufa"].power.waiting, 5.0);
+        let texto = std::fs::read_to_string(&c).unwrap();
+        assert!(texto.contains("environment"));
         let _ = std::fs::remove_dir_all(&pasta);
     }
 

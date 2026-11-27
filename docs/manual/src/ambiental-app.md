@@ -149,5 +149,9 @@ no pico, o fator de carga e a conta de energia simulada da janela.
 
 ## Salvar
 
-**Salvar** grava o bloco ambiental num arquivo ao lado do modelo (`<modelo>.ambiental.ron`).
-O modelo do UTSim não muda.
+**Salvar** grava o bloco ambiental onde ele mora: dentro do modelo (o UTSim mostra a aba
+Ambiental do nó) ou no arquivo ao lado (`<modelo>.ambiental.ron`). No alto da Fábrica, o app
+diz onde está; **Mover para dentro do modelo** faz a passagem (o arquivo ao lado fica como
+`.bak`). Para gravar no modelo, o app pega a trava do modelo por um instante: se outra
+pessoa ou outro app estiver editando, ele avisa e não grava. **Simular de novo** relê o
+modelo do disco, com o que o UTSim tiver mudado.

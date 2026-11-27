@@ -91,7 +91,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "parking_lot",
  "percent-encoding",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
  "x11rb",
 ]
 
@@ -1106,7 +1106,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2913,7 +2913,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3311,7 +3311,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.5",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3612,13 +3612,14 @@ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 
 [[package]]
 name = "utsim-ambiental-app"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "eframe",
  "serde",
  "serde_json",
  "utsim-ambiental-core",
  "utsim-core",
+ "utsim-edit",
  "utsim-ferramentas",
  "utsim-idiomas",
  "utsim-launcher-core",
@@ -3646,8 +3647,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-cad"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -3655,8 +3656,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-core"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "rand",
  "rand_distr",
@@ -3667,9 +3668,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "utsim-edit"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
+dependencies = [
+ "ron",
+ "serde",
+ "serde_json",
+ "utsim-core",
+ "utsim-fluid",
+ "utsim-idiomas",
+ "utsim-model",
+ "utsim-objects",
+]
+
+[[package]]
 name = "utsim-estudo"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "serde",
  "serde_json",
@@ -3680,8 +3696,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-ferramentas"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "serde",
  "serde_json",
@@ -3691,8 +3707,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-fit"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "rand",
  "rand_distr",
@@ -3705,8 +3721,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-flow"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "serde",
  "utsim-core",
@@ -3715,8 +3731,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-fluid"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "serde",
  "utsim-core",
@@ -3724,8 +3740,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-idiomas"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "egui",
  "fluent-bundle",
@@ -3736,8 +3752,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-launcher-core"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "argon2",
  "base64 0.22.1",
@@ -3756,8 +3772,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-model"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "rayon",
  "ron",
@@ -3777,8 +3793,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-nav"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "serde",
  "utsim-cad",
@@ -3788,8 +3804,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-objects"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "serde",
  "utsim-core",
@@ -3797,8 +3813,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-pasta"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "getrandom 0.2.17",
  "serde",
@@ -3808,8 +3824,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-quality"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "rand",
  "rand_distr",
@@ -3822,8 +3838,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-script"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "rhai",
  "utsim-core",
@@ -3831,8 +3847,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-stats"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "serde",
  "utsim-core",
@@ -3840,8 +3856,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-troca"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "serde",
  "serde_json",
@@ -3853,8 +3869,8 @@ dependencies = [
 
 [[package]]
 name = "utsim-ui-tema"
-version = "0.1.0"
-source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.1.0#e1e4a33e56b7383344369aca1876243c2c67580f"
+version = "0.2.0"
+source = "git+https://github.com/JandreiSS/utsim-familia?tag=v0.2.0#4f09df1eb08405dbe09a881b34216681fdcd6f6d"
 dependencies = [
  "egui",
  "png",
@@ -4291,7 +4307,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

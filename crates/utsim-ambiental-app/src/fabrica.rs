@@ -41,6 +41,8 @@ pub struct Vista {
     pub ultimo_quadro: Option<f64>,
     /// Onde começou o arrasto na curva (instante do modelo).
     pub arrasto: Option<f64>,
+    /// A janela de confirmação de "Mover para dentro do modelo" está aberta.
+    pub confirmar_migracao: bool,
 }
 
 /// Quanto dura "Tocar o dia" (a janela inteira), em segundos.
@@ -124,6 +126,10 @@ impl Vista {
                     )
                     .clicked()
                 {
+                    // O UTSim pode ter mudado o modelo ou a aba Ambiental: relê antes.
+                    if let Err(e) = p.recarregar() {
+                        msg = Some((fx("app-erro_abrir", &[("e", vx(&e))]), true));
+                    }
                     p.simular();
                 }
                 if ui
@@ -172,6 +178,60 @@ impl Vista {
                 }
             }
         });
+        ui.horizontal(|ui| {
+            let origem = match p.origem {
+                crate::projeto::Origem::Modelo => tx("fab-bloco_no_modelo"),
+                crate::projeto::Origem::Lateral => tx("fab-bloco_ao_lado"),
+            };
+            ui.label(egui::RichText::new(origem).color(colors::TEXT_WEAK).small());
+            if p.pode_migrar() && ui.small_button(tx("fab-migrar")).clicked() {
+                self.confirmar_migracao = true;
+            }
+        });
+        if self.confirmar_migracao {
+            let mut aberto = true;
+            let mut fechar = false;
+            egui::Window::new(tx("fab-migrar"))
+                .open(&mut aberto)
+                .collapsible(false)
+                .resizable(false)
+                .show(ui.ctx(), |ui| {
+                    let massas = p
+                        .lateral
+                        .environment
+                        .item_mass_kg
+                        .keys()
+                        .filter(|k| p.modelo.item_types.iter().any(|t| &t.name == *k))
+                        .count();
+                    ui.label(fx(
+                        "fab-migrar_explica",
+                        &[
+                            ("nos", p.lateral.objects.len().into()),
+                            ("massas", massas.into()),
+                        ],
+                    ));
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(utsim_ui_tema::widgets::primary(tx("fab-migrar_confirmar")))
+                            .clicked()
+                        {
+                            msg = Some(match p.migrar() {
+                                Ok(c) => {
+                                    (fx("fab-migrado", &[("arquivo", vx(&c.display()))]), false)
+                                }
+                                Err(e) => (fx("app-erro_salvar", &[("e", vx(&e))]), true),
+                            });
+                            fechar = true;
+                        }
+                        if ui.button(tx("fab-cancelar")).clicked() {
+                            fechar = true;
+                        }
+                    });
+                });
+            if !aberto || fechar {
+                self.confirmar_migracao = false;
+            }
+        }
         for pr in p.problemas.iter().filter(|x| x.grave) {
             ui.colored_label(colors::ERROR, problema(pr));
         }

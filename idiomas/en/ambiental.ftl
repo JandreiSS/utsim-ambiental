@@ -531,3 +531,26 @@ met-ind_demanda_max_kw = Maximum demand (kW)
 met-ind_desvio_aterro_pct = Waste diverted from landfill (%)
 met-ind_rendimento_material_pct = Material yield (%)
 met-ind_reuso_pct = Water reuse (%)
+
+## AM11: conversa com LSS e Estatística
+
+cen-testar = Test the reduction
+cen-enviar_estatistica = Send to Statistics
+cen-levar_lss = Take to LSS
+cen-teste_reduz = { $metrica }: reduces by { $dif } (95 %: { $de } to { $ate }), p = { $p } ({ $origem })
+cen-teste_nao = { $metrica }: the reduction is not confirmed ({ $dif }, 95 %: { $de } to { $ate }), p = { $p } ({ $origem })
+cen-enviado_estatistica = Request and CSV saved in { $pasta }; Statistics opened with the data.
+cen-enviado_lss = Opportunity saved in { $pasta }; LSS opened. It records the idea once it handles the nova_oportunidade request.
+cen-pedido_gravado = Request saved in { $pasta } (the app was not found: install it with the launcher).
+cen-resposta = Reply received for { $cenario }.
+cen-origem_estatistica = UTSim Estatística
+
+## AM10: bloco no modelo
+
+fab-bloco_no_modelo = Environmental block inside the model (also edited in UTSim's Ambiental tab)
+fab-bloco_ao_lado = Environmental block in the file next to the model
+fab-migrar = Move into the model
+fab-migrar_explica = The blocks of { $nos } machines, the catalogue and { $massas } item-type masses move into the model (the format does not change). UTSim then shows the Ambiental tab with the power. The side file is kept as .bak.
+fab-migrar_confirmar = Move now
+fab-cancelar = Cancel
+fab-migrado = Environmental block saved inside { $arquivo }.

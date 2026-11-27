@@ -531,3 +531,26 @@ met-ind_demanda_max_kw = Puissance maximale (kW)
 met-ind_desvio_aterro_pct = Déchets détournés de l'enfouissement (%)
 met-ind_rendimento_material_pct = Rendement matière (%)
 met-ind_reuso_pct = Réutilisation de l'eau (%)
+
+## AM11: conversa com LSS e Estatística
+
+cen-testar = Tester la réduction
+cen-enviar_estatistica = Envoyer à Statistique
+cen-levar_lss = Envoyer au LSS
+cen-teste_reduz = { $metrica } : réduit de { $dif } (95 % : { $de } à { $ate }), p = { $p } ({ $origem })
+cen-teste_nao = { $metrica } : la réduction n'est pas confirmée ({ $dif }, 95 % : { $de } à { $ate }), p = { $p } ({ $origem })
+cen-enviado_estatistica = Demande et CSV enregistrés dans { $pasta } ; Statistique s'est ouvert avec les données.
+cen-enviado_lss = Opportunité enregistrée dans { $pasta } ; le LSS s'est ouvert. Il enregistre l'idée quand il traitera la demande nova_oportunidade.
+cen-pedido_gravado = Demande enregistrée dans { $pasta } (app introuvable : installez-la avec le launcher).
+cen-resposta = Réponse reçue pour { $cenario }.
+cen-origem_estatistica = UTSim Estatística
+
+## AM10: bloco no modelo
+
+fab-bloco_no_modelo = Bloc environnemental dans le modèle (aussi modifié dans l'onglet Environnement d'UTSim)
+fab-bloco_ao_lado = Bloc environnemental dans le fichier à côté du modèle
+fab-migrar = Déplacer dans le modèle
+fab-migrar_explica = Les blocs de { $nos } machines, le catalogue et { $massas } masses de type d'article passent dans le modèle (le format ne change pas). UTSim affiche alors l'onglet Environnement avec la puissance. Le fichier à côté est gardé en .bak.
+fab-migrar_confirmar = Déplacer maintenant
+fab-cancelar = Annuler
+fab-migrado = Bloc environnemental enregistré dans { $arquivo }.

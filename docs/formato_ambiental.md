@@ -6,6 +6,11 @@ Este documento descreve o formato dos dados do UTSim Ambiental (fase AM0 do
 
 ## Onde fica
 
+Desde a família 0.2.0 (fase AM10), o bloco mora dentro do modelo: `environment` em cada
+objeto e no modelo, e `mass_kg` em cada tipo de item, com os mesmos tipos
+(`utsim_model::environment`). O UTSim edita a etapa e a potência na aba Ambiental do nó.
+Um modelo sem o bloco usa ainda o arquivo lateral abaixo.
+
 Enquanto as bibliotecas da família não têm o campo `environment`, o bloco mora num
 arquivo ao lado do modelo, com o mesmo nome e o fim `.ambiental.ron`:
 

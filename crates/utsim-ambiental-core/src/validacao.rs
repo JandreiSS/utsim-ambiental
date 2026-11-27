@@ -267,11 +267,7 @@ pub fn validar(modelo: &Model, lateral: &Lateral) -> Vec<Problema> {
 }
 
 /// `"HH:MM"` em minutos desde a meia-noite, dentro de um dia.
-pub fn hora(s: &str) -> Option<u32> {
-    let (h, m) = s.trim().split_once(':')?;
-    let (h, m): (u32, u32) = (h.parse().ok()?, m.parse().ok()?);
-    (h < 24 && m < 60).then_some(h * 60 + m)
-}
+pub use utsim_model::environment::hora;
 
 #[cfg(test)]
 mod testes {

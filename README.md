@@ -75,10 +75,12 @@ utsim-ambiental --utsim-abrir=<modelo.ron> --utsim-no=<nome do nó>
 
 ## Onde mora o bloco ambiental
 
-Enquanto as bibliotecas da família não têm o campo `environment` no modelo, o bloco fica
-num arquivo ao lado do modelo: `linha.ron` → `linha.ambiental.ron`. O modelo não muda, e a
-simulação não lê esse arquivo (ligar o bloco ambiental não muda nenhum tempo). Quando o
-campo entrar na família (fase AM10), o bloco muda de lugar, não de formato.
+Desde a família 0.2.0 (fase AM10), o bloco pode morar dentro do modelo: `environment` do
+objeto e do modelo e `mass_kg` do tipo de item, editados aqui e na aba Ambiental do nó no
+UTSim. Um modelo que ainda não tem o bloco usa o arquivo ao lado dele (`linha.ron` →
+`linha.ambiental.ron`); o botão "Mover para dentro do modelo" faz a passagem. O formato é o
+mesmo nos dois lugares, e a simulação não lê nenhum deles (ligar o bloco ambiental não muda
+nenhum tempo).
 
 ## Regras de honestidade (valem para todo código novo)
 
@@ -101,8 +103,11 @@ massa, sucata, mochila do refugo, água, efluentes e resíduos (AM5).
 O diagrama de Sankey (AM6), a pegada por produto (AM7) e os cenários com custo e impacto
 (AM8) e as metas (AM9) também estão prontos.
 
-Próximos passos, na ordem do plano: AM10 (o campo `environment` na
-família e a aba Ambiental no UTSim) quando as bibliotecas da família aceitarem o campo. A seção 8 do plano lista ideias de TCC por curso.
+A aba Ambiental no UTSim e o bloco dentro do modelo (AM10) e a conversa com o LSS e a
+Estatística (AM11) também estão prontos.
+
+Próximos passos, na ordem do plano: AM12 (pacote "Fábrica verde" do Ensino), AM13 (camada no
+3D), e as extensões AM14 a AM16. A seção 8 do plano lista ideias de TCC por curso.
 
 ## Mudar o núcleo da família junto com o app
 

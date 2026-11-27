@@ -2,7 +2,7 @@
 name = "utsim-ambiental-app"
 description = "UTSim Ambiental: energia, emissões e outros impactos da fábrica simulada, por máquina (janela nativa)"
 # Own version and tag (`am-v<version>`), apart from the other apps.
-version = "0.2.0"
+version = "0.3.0"
 edition.workspace = true
 # eframe 0.36 needs Rust 1.95.
 rust-version = "1.95"
@@ -29,6 +29,8 @@ serde.workspace = true
 serde_json.workspace = true
 # The report generator of the family (HTML and PDF).
 utsim-ferramentas.workspace = true
+# The commands that write the environmental block into the model (AM10), one undo step.
+utsim-edit.workspace = true
 # Requests to UTSim LSS and UTSim Estatística, and finding them through the launcher (AM11).
 utsim-troca.workspace = true
 utsim-launcher-core.workspace = true

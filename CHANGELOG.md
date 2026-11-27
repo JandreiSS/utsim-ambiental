@@ -4,9 +4,15 @@ As mudanças deste repositório ficam registradas aqui.
 
 ## [Não lançado]
 
+## [am-0.3.0] - 2026-11-27
+
 ### Novo
 - UTSim Ambiental, fase AM9: tela Metas com um cartão por meta (indicador, alcance fábrica/etapa/máquina, base total/por peça boa/por hora, linha de base, alvo e prazo), semáforo pela fração das replicações que cumprem a meta com intervalo de Wilson, orçamento de carbono, cenários ligados como ações com a cascata da linha de base ao alvo, leituras reais ao lado do simulado e selos de conquista que o professor pode desligar.
+- UTSim Ambiental, fase AM10: o bloco ambiental pode morar dentro do modelo (família 0.2.0: `environment` do objeto e do modelo, `mass_kg` do tipo de item), editado também na aba Ambiental do nó no UTSim. "Mover para dentro do modelo" leva o arquivo lateral para o modelo (o formato não muda; o arquivo fica como .bak); a gravação no modelo pega a trava do modelo e vai num passo de desfazer; "Simular de novo" relê o modelo do disco.
 - UTSim Ambiental, fase AM11: teste t pareado da redução gravado no cenário; "Enviar para a Estatística" grava o CSV pareado e o pedido `analisar` e abre a Estatística; "Levar para o LSS" grava o pedido `nova_oportunidade` com as diferenças, o investimento e a linha ambiental do mapa de fluxo de valor; respostas lidas e gravadas no cenário (docs/troca_ambiental.md).
+
+### Alterado
+- Usa a família pela tag v0.2.0 (bloco ambiental no modelo).
 
 ## [am-0.2.0] - 2026-11-27
 
