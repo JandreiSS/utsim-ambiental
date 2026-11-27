@@ -19,5 +19,9 @@ utsim-pasta.workspace = true
 serde.workspace = true
 # The scenarios file next to the model.
 serde_json.workspace = true
+# The paired t test of a scenario (AM11).
+utsim-stats.workspace = true
+# Requests between the family apps (AM11).
+utsim-troca.workspace = true
 ron.workspace = true
 thiserror.workspace = true

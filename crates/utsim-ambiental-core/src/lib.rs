@@ -21,6 +21,7 @@ pub mod produto;
 pub mod rodar;
 pub mod sankey;
 pub mod tarifa;
+pub mod troca;
 pub mod validacao;
 
 use std::path::{Path, PathBuf};

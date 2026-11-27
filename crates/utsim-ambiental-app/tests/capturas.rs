@@ -146,6 +146,7 @@ fn fabrica_do_exemplo() {
                 }],
                 investimento: Some(5000.0),
                 vida_anos: Some(10.0),
+                testes: Vec::new(),
             });
         p.estudo.horas_por_ano = Some(4000.0);
         let mut t = p.lateral.environment.tariff.clone().unwrap();

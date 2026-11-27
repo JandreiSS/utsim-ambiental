@@ -44,6 +44,10 @@ pub struct Projeto {
     /// As rodadas dos cenários que mudam o modelo, pelas mudanças.
     rodadas_cenarios: std::collections::BTreeMap<String, Vec<Rodada>>,
     cenario_em_curso: Option<(String, Recebe)>,
+    /// Uma mensagem do editor de cenários para o rodapé.
+    pub mensagem_cenario: Option<(String, bool)>,
+    /// Os pedidos enviados à Estatística que esperam resposta: `(cenário, pedido)`.
+    pub pedidos: Vec<(String, utsim_troca::Pedido)>,
 }
 
 /// A chave das mudanças de modelo de um cenário (as que pedem simular).
@@ -76,6 +80,8 @@ impl Projeto {
             cache_cenarios: Default::default(),
             rodadas_cenarios: Default::default(),
             cenario_em_curso: None,
+            mensagem_cenario: None,
+            pedidos: Vec::new(),
         };
         p.problemas = validar(&p.modelo, &p.lateral);
         Ok(p)

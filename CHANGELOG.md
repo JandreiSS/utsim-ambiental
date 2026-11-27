@@ -6,6 +6,7 @@ As mudanças deste repositório ficam registradas aqui.
 
 ### Novo
 - UTSim Ambiental, fase AM9: tela Metas com um cartão por meta (indicador, alcance fábrica/etapa/máquina, base total/por peça boa/por hora, linha de base, alvo e prazo), semáforo pela fração das replicações que cumprem a meta com intervalo de Wilson, orçamento de carbono, cenários ligados como ações com a cascata da linha de base ao alvo, leituras reais ao lado do simulado e selos de conquista que o professor pode desligar.
+- UTSim Ambiental, fase AM11: teste t pareado da redução gravado no cenário; "Enviar para a Estatística" grava o CSV pareado e o pedido `analisar` e abre a Estatística; "Levar para o LSS" grava o pedido `nova_oportunidade` com as diferenças, o investimento e a linha ambiental do mapa de fluxo de valor; respostas lidas e gravadas no cenário (docs/troca_ambiental.md).
 
 ## [am-0.2.0] - 2026-11-27
 

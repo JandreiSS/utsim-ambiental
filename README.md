@@ -39,6 +39,8 @@ O plano completo, com todas as fases (AM0 a AM16), está em
   - `produto.rs`: a pegada por tipo de peça, com a regra de rateio.
   - `cenarios.rs`: as alavancas, a diferença pareada, a fronteira e o retorno.
   - `metas.rs`: o valor de cada meta, a probabilidade de cumprir, a cascata e os selos.
+  - `troca.rs`: o teste da redução e os pedidos para o LSS e a Estatística
+    ([`docs/troca_ambiental.md`](docs/troca_ambiental.md)).
 - `crates/utsim-ambiental-app/`: a janela (egui). Não faz conta, só desenha.
   - `app.rs`: abertura, barra lateral, rodapé. `fabrica.rs`: o mapa de calor.
     `maquinas.rs`: potência de cada máquina. `fatores.rs`: fatores de emissão.

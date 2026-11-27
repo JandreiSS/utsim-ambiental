@@ -127,6 +127,10 @@ no pico, o fator de carga e a conta de energia simulada da janela.
 - A dispersão custo × impacto liga os cenários que não perdem nos dois critérios.
 - Com o **investimento**, a vida útil e as **horas de operação por ano**, o app calcula o
   retorno simples e o custo por tonelada de CO₂e evitada.
+- **Testar a redução** faz o teste t pareado do cenário contra o Base no impacto escolhido e
+  grava o resultado no cenário. **Enviar para a Estatística** abre a Estatística com os dados
+  pareados; **Levar para o LSS** grava a oportunidade (com a linha ambiental do mapa de fluxo
+  de valor) para a carteira do LSS. Os pedidos ficam na pasta `troca/` ao lado do modelo.
 - **Salvar cenários** grava `<modelo>.cenarios_ambientais.json` ao lado do modelo.
 
 ## Metas

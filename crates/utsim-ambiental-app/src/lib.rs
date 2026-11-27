@@ -9,6 +9,7 @@
 pub mod app;
 pub mod cenarios;
 pub mod config;
+pub mod conversa;
 pub mod fabrica;
 pub mod fatores;
 pub mod fluxos;

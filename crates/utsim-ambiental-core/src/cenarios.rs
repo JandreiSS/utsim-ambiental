@@ -62,6 +62,10 @@ pub struct Cenario {
     /// Custo de implantação e vida útil em anos (para o retorno e o custo por tonelada).
     pub investimento: Option<f64>,
     pub vida_anos: Option<f64>,
+    /// Os testes da redução gravados (fase AM11): o do próprio app ou a resposta da
+    /// Estatística.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub testes: Vec<crate::troca::Teste>,
 }
 
 impl Cenario {
@@ -408,6 +412,7 @@ mod testes {
                 }],
                 investimento: Some(10.0),
                 vida_anos: None,
+                testes: Vec::new(),
             }],
             horas_por_ano: Some(4000.0),
             preco_carbono: None,

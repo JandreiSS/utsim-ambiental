@@ -317,6 +317,12 @@ impl Vista {
             ui.label(tx("fab-esperando_simulacao"));
             return None;
         };
+        if let Some(m) = p.mensagem_cenario.take() {
+            msg = Some(m);
+        }
+        if let Some(m) = crate::conversa::vigiar(p) {
+            msg = Some(m);
+        }
         if let Some(r) = p.receber_cenario() {
             msg = Some(match r {
                 Ok(()) => (tx("cen-simulado").into(), false),
@@ -448,6 +454,10 @@ impl Vista {
             }
         });
         ui.add_space(4.0);
+        if let Some(m) = self.conversa(ui, p, &mut c) {
+            p.mensagem_cenario = Some(m);
+        }
+        ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.label(tx("cen-investimento"));
             opcional(ui, &mut c.investimento, 100.0);
@@ -460,6 +470,66 @@ impl Vista {
         } else if c != p.estudo.cenarios[i] {
             p.estudo.cenarios[i] = c;
         }
+    }
+
+    /// O teste da redução, o pedido para a Estatística e a oportunidade para o LSS.
+    fn conversa(
+        &self,
+        ui: &mut egui::Ui,
+        p: &mut Projeto,
+        c: &mut Cenario,
+    ) -> Option<(String, bool)> {
+        let mut msg = None;
+        let base = p.inventario.clone()?;
+        let inv = p.avaliar_cenario(c).ok().flatten()?;
+        let chave = self.impacto.chave();
+        let (Some(b), Some(x)) = (base.metricas.get(chave), inv.metricas.get(chave)) else {
+            return None;
+        };
+        let (b, x) = (b.clone(), x.clone());
+        ui.horizontal(|ui| {
+            if ui.button(tx("cen-testar")).clicked()
+                && let Some(t) = utsim_ambiental_core::troca::testar(&b, &x, chave)
+            {
+                c.testes
+                    .retain(|y| !(y.metrica == t.metrica && y.origem == t.origem));
+                c.testes.push(t);
+            }
+            if ui.button(tx("cen-enviar_estatistica")).clicked() {
+                msg = Some(crate::conversa::enviar_estatistica(
+                    p, &c.nome, chave, &b, &x,
+                ));
+            }
+            if ui.button(tx("cen-levar_lss")).clicked() {
+                msg = Some(crate::conversa::levar_lss(p, c, &base, &inv));
+            }
+        });
+        for t in &c.testes {
+            let cor = if t.reduz() {
+                colors::SUCCESS
+            } else {
+                colors::TEXT_WEAK
+            };
+            ui.colored_label(
+                cor,
+                fx(
+                    if t.reduz() {
+                        "cen-teste_reduz"
+                    } else {
+                        "cen-teste_nao"
+                    },
+                    &[
+                        ("metrica", vx(&t.metrica)),
+                        ("dif", vx(&num(t.diferenca, casas(t.diferenca)))),
+                        ("de", vx(&num(t.de, casas(t.de)))),
+                        ("ate", vx(&num(t.ate, casas(t.ate)))),
+                        ("p", vx(&num(t.p_valor, 4))),
+                        ("origem", vx(&t.origem)),
+                    ],
+                ),
+            );
+        }
+        msg
     }
 
     fn comparacao(&mut self, ui: &mut egui::Ui, p: &mut Projeto, base: &Inventario) {

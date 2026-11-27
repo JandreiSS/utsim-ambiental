@@ -18,6 +18,9 @@ utsim-model = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.
 utsim-pasta = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
 utsim-ui-tema = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
 utsim-ferramentas = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
+utsim-stats = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
+utsim-troca = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
+utsim-launcher-core = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
 utsim-idiomas = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.1.0" }
 
 serde = { version = "1", features = ["derive"] }
