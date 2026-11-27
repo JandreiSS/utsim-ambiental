@@ -89,7 +89,12 @@ O que ainda não conta aparece na tela, na lista "Ainda não contado".
 | `effluent` | `parameters: [(name, unit, limit, limit_source)]` e `destinations: [(name, removal, kwh_per_m3, sludge_kg_per_m3, cost_per_m3)]` |
 | `prices` | preço por unidade de cada fluxo |
 | `allocation` | a regra de rateio para o produto: `ByProcessTime` (padrão), `ByItems`, `ByMass` ou `None` (a espera fica como estrutura) |
-| `gases`, `targets` | das fases AM9 em diante |
+| `targets` | as metas: `(id, indicator, scope: Factory \| Stage("…") \| Node("…"), basis: Total \| PerGoodItem \| PerHour, baseline, target, due, actions)` |
+| `carbon_budget_kg`, `hide_badges` | o orçamento de carbono do período e a chave dos selos de conquista |
+| `gases` | fase posterior |
+
+As leituras reais das metas ficam em `<modelo>.leituras_ambientais.json`, e os cenários em
+`<modelo>.cenarios_ambientais.json`, os dois ao lado do modelo.
 
 Fluxos de água ficam em `L` ou `m3`. Fluxos de resíduo ficam em kg e levam o `destination` do
 fluxo; a emissão deles é a do destino. A sucata e o lodo do tratamento entram nos resíduos

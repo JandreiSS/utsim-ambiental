@@ -129,6 +129,20 @@ no pico, o fator de carga e a conta de energia simulada da janela.
   retorno simples e o custo por tonelada de CO₂e evitada.
 - **Salvar cenários** grava `<modelo>.cenarios_ambientais.json` ao lado do modelo.
 
+## Metas
+
+- **+ Nova meta** cria uma meta já com a linha de base e um alvo 10 % melhor; **Abrir**
+  mostra os campos: indicador, alcance (fábrica, etapa ou máquina), base (total, por peça boa
+  ou por hora), linha de base, alvo e prazo.
+- O semáforo diz em que fração das replicações a meta é cumprida: verde com 80 % ou mais,
+  vermelho com 20 % ou menos, amarelo entre os dois (com o intervalo de 95 %).
+- Marque cenários para ligá-los à meta como ações: a cascata mostra o caminho da linha de
+  base ao alvo (os efeitos somados são uma aproximação).
+- **Dado real** guarda leituras de medidor, contas ou pesagens ao lado do modelo, com a
+  origem Real, e o cartão mostra o real ao lado do simulado.
+- O **orçamento de carbono** mostra quanto a janela simulada usou; os **selos de conquista**
+  podem ser desligados pelo professor.
+
 ## Salvar
 
 **Salvar** grava o bloco ambiental num arquivo ao lado do modelo (`<modelo>.ambiental.ron`).

@@ -16,6 +16,7 @@ pub mod formato;
 pub mod mapa;
 pub mod materiais;
 pub mod medida;
+pub mod metas;
 pub mod produto;
 pub mod rodar;
 pub mod sankey;

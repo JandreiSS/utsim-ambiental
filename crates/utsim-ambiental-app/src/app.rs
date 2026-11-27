@@ -35,6 +35,7 @@ pub struct App {
     pub fluxos: crate::fluxos::Vista,
     pub produto: crate::produto::Vista,
     pub cenarios: crate::cenarios::Vista,
+    pub metas: crate::metas::Vista,
     /// O último relatório gravado.
     pub relatorio: Option<PathBuf>,
     /// A última mensagem do rodapé e se é um erro.
@@ -60,6 +61,7 @@ impl App {
             fluxos: crate::fluxos::Vista::default(),
             produto: crate::produto::Vista::default(),
             cenarios: crate::cenarios::Vista::default(),
+            metas: crate::metas::Vista::default(),
             relatorio: None,
             mensagem: None,
         }
@@ -173,6 +175,13 @@ impl App {
                     self.mensagem = Some(m);
                 }
             }
+            Tela::Metas => {
+                if let Some(p) = &mut self.projeto
+                    && let Some(m) = self.metas.ui(ui, p)
+                {
+                    self.mensagem = Some(m);
+                }
+            }
             Tela::Relatorios => {
                 if let Some(p) = &self.projeto
                     && let Some(m) = crate::relatorio::ui(ui, p, &mut self.relatorio)
@@ -180,18 +189,15 @@ impl App {
                     self.mensagem = Some(m);
                 }
             }
-            _ => {}
         });
     }
 
-    /// A barra lateral: o app, o modelo aberto e as telas. As telas das próximas fases
-    /// aparecem apagadas, com a fase em que chegam.
+    /// A barra lateral: o app, o modelo aberto e as telas.
     fn barra_lateral(&mut self, ui: &mut egui::Ui) {
         use utsim_ui_tema::navegacao::{Barra, Grupo, Item};
         let sem = self.projeto.is_none();
         let motivo = tx("app-abra_um_modelo");
         let it = |t, nome| Item::novo(t, nome).bloqueado_se(sem, motivo);
-        let depois = |t, nome, fase| Item::novo(t, nome).bloqueado_se(true, fase);
         let grupos = [
             Grupo {
                 titulo: None,
@@ -216,7 +222,7 @@ impl App {
                 titulo: Some(tx("app-grupo_decidir")),
                 itens: vec![
                     it(Tela::Cenarios, tx("app-cenarios")),
-                    depois(Tela::Metas, tx("app-metas"), tx("app-fase_am9")),
+                    it(Tela::Metas, tx("app-metas")),
                     it(Tela::Relatorios, tx("app-relatorios")),
                 ],
             },

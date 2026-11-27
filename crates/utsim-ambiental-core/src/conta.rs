@@ -651,6 +651,7 @@ pub fn avaliar(
             "ambiental.energia_sem_valor_kwh".into(),
             fab_sem[r],
         );
+        push(&mut met, "ambiental.pecas_boas".into(), boas[r]);
         if boas[r] > 0.0 {
             push(
                 &mut met,

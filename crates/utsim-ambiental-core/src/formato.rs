@@ -323,6 +323,12 @@ pub struct EnvironmentCatalog {
     /// O destino da sucata (as peças que chegam às saídas de refugo).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scrap_destination: Option<String>,
+    /// O orçamento de carbono do período simulado (kg CO₂e), para o painel de metas.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub carbon_budget_kg: Option<f64>,
+    /// O professor desligou os selos de conquista.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub hide_badges: bool,
 }
 
 impl EnvironmentCatalog {
@@ -601,6 +607,9 @@ pub struct Target {
     pub baseline: Option<f64>,
     pub target: Option<f64>,
     pub due: Option<String>,
+    /// Os cenários ligados à meta como ações (pelo nome).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actions: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

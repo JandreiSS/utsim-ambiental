@@ -13,6 +13,7 @@ pub mod fabrica;
 pub mod fatores;
 pub mod fluxos;
 pub mod maquinas;
+pub mod metas;
 pub mod produto;
 pub mod projeto;
 pub mod relatorio;

@@ -38,6 +38,8 @@ pub struct Projeto {
     rodando: Option<Recebe>,
     /// Os cenários do modelo (fase AM8) e o que já foi calculado de cada um.
     pub estudo: utsim_ambiental_core::cenarios::Estudo,
+    /// As leituras reais das metas (fase AM9), ao lado do modelo.
+    pub leituras: Vec<utsim_ambiental_core::metas::Leitura>,
     cache_cenarios: std::collections::BTreeMap<String, Inventario>,
     /// As rodadas dos cenários que mudam o modelo, pelas mudanças.
     rodadas_cenarios: std::collections::BTreeMap<String, Vec<Rodada>>,
@@ -57,6 +59,7 @@ impl Projeto {
         let lateral = utsim_ambiental_core::ler_do_modelo(caminho).map_err(|e| e.to_string())?;
         let caminho = std::fs::canonicalize(caminho).unwrap_or_else(|_| caminho.to_path_buf());
         let estudo = utsim_ambiental_core::cenarios::ler(&caminho);
+        let caminho_leituras = caminho.clone();
         let mut p = Projeto {
             caminho,
             modelo,
@@ -69,6 +72,7 @@ impl Projeto {
             problemas: Vec::new(),
             rodando: None,
             estudo,
+            leituras: utsim_ambiental_core::metas::ler_leituras(&caminho_leituras),
             cache_cenarios: Default::default(),
             rodadas_cenarios: Default::default(),
             cenario_em_curso: None,

@@ -4,6 +4,9 @@ As mudanças deste repositório ficam registradas aqui.
 
 ## [Não lançado]
 
+### Novo
+- UTSim Ambiental, fase AM9: tela Metas com um cartão por meta (indicador, alcance fábrica/etapa/máquina, base total/por peça boa/por hora, linha de base, alvo e prazo), semáforo pela fração das replicações que cumprem a meta com intervalo de Wilson, orçamento de carbono, cenários ligados como ações com a cascata da linha de base ao alvo, leituras reais ao lado do simulado e selos de conquista que o professor pode desligar.
+
 ## [am-0.2.0] - 2026-11-27
 
 ### Novo

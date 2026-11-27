@@ -160,6 +160,27 @@ fn fabrica_do_exemplo() {
     app.cenarios.impacto = utsim_ambiental_app::cenarios::Impacto::Energia;
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_cenarios");
+    {
+        let p = app.projeto.as_mut().unwrap();
+        p.lateral
+            .environment
+            .targets
+            .push(utsim_ambiental_core::formato::Target {
+                id: "m1".into(),
+                indicator: "energia_kwh".into(),
+                scope: utsim_ambiental_core::formato::TargetScope::Factory,
+                basis: utsim_ambiental_core::formato::Basis::PerGoodItem,
+                baseline: Some(1.45),
+                target: Some(1.42),
+                due: Some("2027-06".into()),
+                actions: vec!["Estufa desliga na espera".into()],
+            });
+        p.recalcular();
+    }
+    app.tela = Tela::Metas;
+    app.metas.aberta = Some("m1".into());
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_metas");
     app.tela = Tela::Fatores;
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_fatores");
