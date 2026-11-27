@@ -47,6 +47,21 @@ pub struct ResumoAgua {
     pub lodo_kg: Indicador,
 }
 
+/// A água de um nó (médias entre replicações), em m³: o que entrou e para onde foi.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AguaNo {
+    pub indice: usize,
+    pub nome: String,
+    pub entrada: f64,
+    pub evaporada: f64,
+    pub incorporada: f64,
+    pub reuso: f64,
+    pub reuso_para: Option<String>,
+    pub efluente: f64,
+    /// O destino do efluente do nó (`None`: sem tratamento cadastrado).
+    pub destino: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResumoResiduos {
     /// `(destino, kg, desviado de aterro)`.
@@ -148,6 +163,8 @@ pub(crate) fn completar(e: &Entrada, fab: &mut Fabrica, inv: &mut Inventario) {
     let mut no_agua: BTreeMap<usize, Vec<f64>> = BTreeMap::new();
     let mut no_efl: BTreeMap<usize, Vec<f64>> = BTreeMap::new();
     let mut no_res: BTreeMap<usize, Vec<f64>> = BTreeMap::new();
+    // Por nó: entrada, evaporada, incorporada, reuso e efluente somados nas replicações.
+    let mut no_det: BTreeMap<usize, [f64; 5]> = BTreeMap::new();
 
     for (i, fluxos) in e.fluxos_no {
         let nome = &e.nomes[*i];
@@ -190,6 +207,12 @@ pub(crate) fn completar(e: &Entrada, fab: &mut Fabrica, inv: &mut Inventario) {
                 agua[r] += a;
                 reuso[r] += reusado;
                 efluente[r] += efl;
+                let det = no_det.entry(*i).or_default();
+                det[0] += a;
+                det[1] += a * w.evaporated;
+                det[2] += a * w.incorporated;
+                det[3] += reusado;
+                det[4] += efl;
                 no_agua.entry(*i).or_insert_with(|| vec![0.0; n])[r] = a;
                 no_efl.entry(*i).or_insert_with(|| vec![0.0; n])[r] = efl;
                 if let Some(ed) = def.and_then(|d| d.effluent.as_ref()) {
@@ -328,6 +351,39 @@ pub(crate) fn completar(e: &Entrada, fab: &mut Fabrica, inv: &mut Inventario) {
             no.sucata_kg = Some(Indicador::de(&suc));
             for x in &suc {
                 push(fab.met, format!("{}.sucata_kg", no.nome), *x);
+            }
+        }
+    }
+
+    let nr = n as f64;
+    inv.agua_nos = no_det
+        .iter()
+        .map(|(i, d)| {
+            let def = l.objects.get(&e.nomes[*i]);
+            AguaNo {
+                indice: *i,
+                nome: e.nomes[*i].clone(),
+                entrada: d[0] / nr,
+                evaporada: d[1] / nr,
+                incorporada: d[2] / nr,
+                reuso: d[3] / nr,
+                reuso_para: def
+                    .and_then(|x| x.water.as_ref())
+                    .and_then(|w| w.reuse_to.clone()),
+                efluente: d[4] / nr,
+                destino: def
+                    .and_then(|x| x.effluent.as_ref())
+                    .map(|x| x.destination.clone()),
+            }
+        })
+        .collect();
+    // A massa que passou entre os nós (média das replicações com rastro).
+    let com_rastro: Vec<&Materiais> = e.mats.iter().flatten().collect();
+    if !com_rastro.is_empty() {
+        let k = com_rastro.len() as f64;
+        for m in &com_rastro {
+            for (par, kg) in &m.transferido {
+                *inv.transferencias.entry(*par).or_default() += kg / k;
             }
         }
     }

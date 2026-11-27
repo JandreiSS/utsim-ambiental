@@ -88,6 +88,9 @@ mod testes {
         for c in utsim_ambiental_core::conta::Pendencia::CHAVES {
             assert!(TEXTOS.tem(&format!("pend-{c}")), "pend-{c}");
         }
+        for r in utsim_ambiental_core::sankey::rotulo::TODOS {
+            assert!(TEXTOS.tem(r), "{r}");
+        }
         for g in utsim_ambiental_core::Grupo::TODOS {
             assert!(TEXTOS.tem(&format!("grupo-{}", g.chave())));
             assert!(TEXTOS.tem(&format!("vilao-{}", g.chave())));

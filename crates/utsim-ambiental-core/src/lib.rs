@@ -16,6 +16,7 @@ pub mod mapa;
 pub mod materiais;
 pub mod medida;
 pub mod rodar;
+pub mod sankey;
 pub mod tarifa;
 pub mod validacao;
 

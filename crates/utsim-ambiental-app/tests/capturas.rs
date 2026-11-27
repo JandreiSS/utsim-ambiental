@@ -112,6 +112,25 @@ fn fabrica_do_exemplo() {
     app.tela = Tela::Fabrica;
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_agua");
+    for (modo, nome) in [
+        (
+            utsim_ambiental_core::sankey::Modo::Massa,
+            "ambiental_sankey_massa",
+        ),
+        (
+            utsim_ambiental_core::sankey::Modo::Energia,
+            "ambiental_sankey_energia",
+        ),
+        (
+            utsim_ambiental_core::sankey::Modo::Agua,
+            "ambiental_sankey_agua",
+        ),
+    ] {
+        app.tela = Tela::Fluxos;
+        app.fluxos.modo = modo;
+        let img = cap.imagem(3, |ui| app.draw(ui));
+        conferir(&img, nome);
+    }
     app.tela = Tela::Fatores;
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_fatores");

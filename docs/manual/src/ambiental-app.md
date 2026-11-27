@@ -87,6 +87,19 @@ no pico, o fator de carga e a conta de energia simulada da janela.
   por destino, o rendimento de material, o balanço de massa e a **mochila do refugo**: o que
   as peças refugadas levaram consigo de energia e de emissão.
 
+## Fluxos (diagrama de Sankey)
+
+- Quatro modos: **Massa** (kg), **Energia** (kWh), **Água** (m³) e **Carbono** (kg CO₂e). As
+  entradas ficam à esquerda, as máquinas no meio e as saídas à direita; a largura da faixa é
+  a quantidade.
+- No modo massa, as filas não aparecem: a massa passa direto de uma máquina para a outra.
+- Clique numa faixa para acender o caminho dela; **Agrupar por etapa** junta as máquinas da
+  mesma etapa (duplo clique abre de novo); **Esconder fluxos menores que** tira os fios finos.
+- Uma máquina em que o que entra não bate com o que sai ganha o selo "faltam" ou "sobram";
+  clique nela para ver a dica (material somado ou resíduo tirado que faltou cadastrar).
+- **Exportar SVG** grava o diagrama ao lado do modelo; **Exportar inventário (CSV)** grava
+  todas as métricas com média e intervalo.
+
 ## Salvar
 
 **Salvar** grava o bloco ambiental num arquivo ao lado do modelo (`<modelo>.ambiental.ron`).

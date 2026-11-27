@@ -10,6 +10,7 @@ pub mod app;
 pub mod config;
 pub mod fabrica;
 pub mod fatores;
+pub mod fluxos;
 pub mod maquinas;
 pub mod projeto;
 pub mod relatorio;

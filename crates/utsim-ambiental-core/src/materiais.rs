@@ -10,7 +10,7 @@
 //! - Balanço da janela: o que entrou (peças criadas mais material somado) é igual ao que
 //!   saiu (peças boas, sucata, material tirado) mais a variação da massa em processo.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use utsim_core::Time;
 use utsim_model::{Model, ObjectKind, SinkRole};
@@ -43,6 +43,24 @@ pub struct Materiais {
     pub em_processo_fim: f64,
     /// O caminho (nós por onde passou) de cada peça refugada na janela.
     pub caminhos_refugo: Vec<Vec<usize>>,
+    /// O tipo de cada peça refugada (0: sem tipo), na ordem de `caminhos_refugo`.
+    pub tipos_refugo: Vec<u32>,
+    /// kg que passaram de um nó para outro na janela, por par `(de, para)`.
+    pub transferido: BTreeMap<(usize, usize), f64>,
+    /// Por nó e por tipo de peça (0: sem tipo): o que entrou e o tempo que ficou.
+    pub por_tipo: Vec<BTreeMap<u32, PorTipo>>,
+    /// Por tipo: peças boas, massa boa e peças refugadas na janela.
+    pub boas_por_tipo: BTreeMap<u32, (f64, f64)>,
+    pub refugadas_por_tipo: BTreeMap<u32, f64>,
+}
+
+/// O que um tipo de peça fez num nó, na janela.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct PorTipo {
+    pub entradas: f64,
+    pub massa: f64,
+    /// Tempo de permanência somado (unidades do modelo), recortado na janela.
+    pub tempo: f64,
 }
 
 impl Materiais {
@@ -135,12 +153,19 @@ pub fn medir(modelo: &Model, l: &Lateral, r: &Rodada, janela: (Time, Time)) -> O
         massa_entrada: vec![0.0; n],
         refugadas: vec![0.0; n],
         sucata_kg: vec![0.0; n],
+        por_tipo: vec![BTreeMap::new(); n],
         ..Materiais::default()
     };
-    // Peça viva → (massa, caminho).
-    let mut vivas: HashMap<u64, (f64, Vec<usize>)> = HashMap::new();
+    struct Viva {
+        massa: f64,
+        caminho: Vec<usize>,
+        tipo: u32,
+        no: usize,
+        desde: Time,
+    }
+    let mut vivas: HashMap<u64, Viva> = HashMap::new();
     let mut inicio_marcado = false;
-    let em_processo = |v: &HashMap<u64, (f64, Vec<usize>)>| v.values().map(|x| x.0).sum::<f64>();
+    let em_processo = |v: &HashMap<u64, Viva>| v.values().map(|x| x.massa).sum::<f64>();
     for p in &rastro.passagens {
         if !inicio_marcado && p.t >= a {
             m.em_processo_inicio = em_processo(&vivas);
@@ -150,31 +175,55 @@ pub fn medir(modelo: &Model, l: &Lateral, r: &Rodada, janela: (Time, Time)) -> O
             break;
         }
         let dentro = p.t >= a;
-        let e: &mut (f64, Vec<usize>) = match p.de {
+        let tipo = rastro.tipos.get(&p.item).copied().unwrap_or(0);
+        let e: &mut Viva = match p.de {
             None => {
                 let k = massa_inicial(modelo, l, rastro.tipos.get(&p.item).copied());
                 if dentro {
                     m.criada_kg += k;
                 }
-                vivas.entry(p.item).or_insert((k, Vec::new()))
+                vivas.entry(p.item).or_insert(Viva {
+                    massa: k,
+                    caminho: Vec::new(),
+                    tipo,
+                    no: p.para,
+                    desde: p.t,
+                })
             }
             Some(de) => {
-                let e = vivas.entry(p.item).or_insert((0.0, Vec::new()));
+                let e = vivas.entry(p.item).or_insert(Viva {
+                    massa: 0.0,
+                    caminho: Vec::new(),
+                    tipo,
+                    no: de,
+                    desde: p.t,
+                });
                 if let Some((mais, menos)) = var.get(de) {
-                    let menos = menos.min(e.0 + mais);
-                    e.0 += mais - menos;
+                    let menos = menos.min(e.massa + mais);
+                    e.massa += mais - menos;
                     if dentro {
                         m.somada_kg += mais;
                         m.tirada_kg += menos;
                     }
                 }
+                // O tempo que a peça ficou no nó de onde sai, recortado na janela.
+                let t0 = e.desde.max(a);
+                if p.t > t0 && de < n {
+                    m.por_tipo[de].entry(e.tipo).or_default().tempo += p.t - t0;
+                }
+                if dentro {
+                    *m.transferido.entry((de, p.para)).or_default() += e.massa;
+                }
                 e
             }
         };
+        e.no = p.para;
+        e.desde = p.t;
         let destino = p.para;
         if saida.get(destino).copied().unwrap_or(false) {
-            let massa_final = e.0;
-            let caminho = std::mem::take(&mut e.1);
+            let massa_final = e.massa;
+            let tipo = e.tipo;
+            let caminho = std::mem::take(&mut e.caminho);
             vivas.remove(&p.item);
             if dentro {
                 if refugo[destino] {
@@ -184,21 +233,36 @@ pub fn medir(modelo: &Model, l: &Lateral, r: &Rodada, janela: (Time, Time)) -> O
                         m.sucata_kg[de] += massa_final;
                     }
                     m.caminhos_refugo.push(caminho);
+                    m.tipos_refugo.push(tipo);
+                    *m.refugadas_por_tipo.entry(tipo).or_default() += 1.0;
                 } else {
                     m.boa_kg += massa_final;
+                    let x = m.boas_por_tipo.entry(tipo).or_default();
+                    x.0 += 1.0;
+                    x.1 += massa_final;
                 }
             }
         } else {
             if dentro && destino < n {
-                m.massa_entrada[destino] += e.0;
+                m.massa_entrada[destino] += e.massa;
+                let x = m.por_tipo[destino].entry(e.tipo).or_default();
+                x.entradas += 1.0;
+                x.massa += e.massa;
             }
             if !fonte.get(destino).copied().unwrap_or(true) {
-                e.1.push(destino);
+                e.caminho.push(destino);
             }
         }
     }
     if !inicio_marcado {
         m.em_processo_inicio = em_processo(&vivas);
+    }
+    // As peças que seguem no nó no fim da janela: o tempo até o fim.
+    for v in vivas.values() {
+        let t0 = v.desde.max(a);
+        if b > t0 && v.no < n {
+            m.por_tipo[v.no].entry(v.tipo).or_default().tempo += b - t0;
+        }
     }
     m.em_processo_fim = em_processo(&vivas);
     Some(m)

@@ -184,6 +184,9 @@ pub struct Inventario {
     pub residuos: Option<crate::balanco::ResumoResiduos>,
     pub materiais: Option<crate::balanco::ResumoMateriais>,
     pub custo: Option<Indicador>,
+    /// A água de cada nó e a massa que passou entre os nós (médias), para o Sankey.
+    pub agua_nos: Vec<crate::balanco::AguaNo>,
+    pub transferencias: BTreeMap<(usize, usize), f64>,
 }
 
 /// A demanda e a conta de energia entre as replicações.

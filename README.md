@@ -35,6 +35,7 @@ O plano completo, com todas as fases (AM0 a AM16), está em
   - `tarifa.rs`: demanda por intervalo, pico, fator de carga e a conta de energia.
   - `materiais.rs`: o caminho de cada peça (massa, sucata, balanço de massa).
   - `balanco.rs`: água, efluentes, resíduos, mochila do refugo e custos.
+  - `sankey.rs`: o grafo de cada modo do Sankey, a geometria e o SVG.
 - `crates/utsim-ambiental-app/`: a janela (egui). Não faz conta, só desenha.
   - `app.rs`: abertura, barra lateral, rodapé. `fabrica.rs`: o mapa de calor.
     `maquinas.rs`: potência de cada máquina. `fatores.rs`: fatores de emissão.
@@ -92,8 +93,10 @@ tempo arrastável, energia por setup e por partida, desligamento em espera, rela
 HTML e PDF, demanda, horário de pico, fator de carga e conta de energia simulada (AM4),
 massa, sucata, mochila do refugo, água, efluentes e resíduos (AM5).
 
-Próximos passos, na ordem do plano: AM6 (Sankey de massa e energia) e AM8 (cenários), depois
-AM7 (pegada por produto) e AM9 (metas). A seção 8 do plano lista ideias de TCC por curso.
+O diagrama de Sankey (AM6) também está pronto.
+
+Próximos passos, na ordem do plano: AM7 (pegada por produto) e AM8 (cenários), depois AM9
+(metas). A seção 8 do plano lista ideias de TCC por curso.
 
 ## Mudar o núcleo da família junto com o app
 
