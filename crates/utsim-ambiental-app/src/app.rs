@@ -33,6 +33,7 @@ pub struct App {
     pub projeto: Option<Projeto>,
     pub fabrica: crate::fabrica::Vista,
     pub fluxos: crate::fluxos::Vista,
+    pub produto: crate::produto::Vista,
     /// O último relatório gravado.
     pub relatorio: Option<PathBuf>,
     /// A última mensagem do rodapé e se é um erro.
@@ -56,6 +57,7 @@ impl App {
             projeto: None,
             fabrica: crate::fabrica::Vista::default(),
             fluxos: crate::fluxos::Vista::default(),
+            produto: crate::produto::Vista::default(),
             relatorio: None,
             mensagem: None,
         }
@@ -155,6 +157,13 @@ impl App {
                     self.mensagem = Some(m);
                 }
             }
+            Tela::Produto => {
+                if let Some(p) = &mut self.projeto
+                    && let Some(m) = self.produto.ui(ui, p)
+                {
+                    self.mensagem = Some(m);
+                }
+            }
             Tela::Relatorios => {
                 if let Some(p) = &self.projeto
                     && let Some(m) = crate::relatorio::ui(ui, p, &mut self.relatorio)
@@ -184,7 +193,7 @@ impl App {
                 itens: vec![
                     it(Tela::Fabrica, tx("app-fabrica")),
                     it(Tela::Fluxos, tx("app-fluxos")),
-                    depois(Tela::Produto, tx("app-produto"), tx("app-fase_am7")),
+                    it(Tela::Produto, tx("app-produto")),
                 ],
             },
             Grupo {

@@ -187,6 +187,8 @@ pub struct Inventario {
     /// A água de cada nó e a massa que passou entre os nós (médias), para o Sankey.
     pub agua_nos: Vec<crate::balanco::AguaNo>,
     pub transferencias: BTreeMap<(usize, usize), f64>,
+    /// A pegada de cada tipo de peça (fase AM7), com rastro.
+    pub produtos: Option<crate::produto::ResumoProdutos>,
 }
 
 /// A demanda e a conta de energia entre as replicações.
@@ -299,6 +301,7 @@ pub fn avaliar(
     let nomes: Vec<String> = modelo.objects.iter().map(|o| o.name.clone()).collect();
     let mut kwh_no = vec![vec![0.0; nomes.len()]; n];
     let mut entradas_no = vec![vec![0.0; nomes.len()]; n];
+    let mut grupos_no = vec![vec![[0.0f64; 5]; nomes.len()]; n];
     let mut fluxos_no: BTreeMap<usize, BTreeMap<String, Vec<f64>>> = BTreeMap::new();
     // Por replicação, na janela da conta: a linha do tempo e os impulsos de cada nó.
     let mut trechos_rep: Vec<Vec<Vec<Trecho>>> = vec![Vec::new(); n];
@@ -483,6 +486,7 @@ pub fn avaliar(
 
         for r in 0..n {
             kwh_no[r][indice] = kwh[r];
+            grupos_no[r][indice] = grupos[r];
         }
         if !fluxos.is_empty() {
             fluxos_no.insert(indice, fluxos.clone());
@@ -748,6 +752,21 @@ pub fn avaliar(
     };
     inv.pecas_boas = Indicador::de(&boas);
     inv.metricas = met;
+    // A pegada por produto (fase AM7), sobre os totais já fechados.
+    crate::produto::calcular(
+        modelo,
+        &crate::balanco::Entrada {
+            lateral,
+            nomes: &nomes,
+            mats: &mats,
+            fluxos_no: &fluxos_no,
+            kwh_no: &kwh_no,
+            entradas_no: &entradas_no,
+        },
+        &grupos_no,
+        &fab_kwh,
+        &mut inv,
+    );
     inv.pendencias = pendencias;
     for f in &usados {
         if let Some(x) = cat.fator(f) {

@@ -398,7 +398,21 @@ pub fn documento(p: &Projeto, inv: &Inventario) -> Document {
         doc.kv(vec![(tx("fab-custo_fluxos").into(), com_intervalo(c))]);
     }
 
-    // Os fatores, sempre, com as fontes.
+    secao_fatores(&mut doc, cat);
+    if !inv.pendencias.is_empty() {
+        doc.heading(tx("fab-ainda_nao_contado"));
+        doc.bullets(
+            inv.pendencias
+                .iter()
+                .map(|x| fx(&format!("pend-{}", x.chave), &[("no", vx(&x.no))]))
+                .collect(),
+        );
+    }
+    doc
+}
+
+/// Os fatores, sempre, com as fontes (AMB-RF-12).
+fn secao_fatores(doc: &mut Document, cat: &utsim_ambiental_core::EnvironmentCatalog) {
     doc.heading(tx("rel-fatores"));
     let linhas: Vec<Vec<String>> = cat
         .factors
@@ -431,7 +445,7 @@ pub fn documento(p: &Projeto, inv: &Inventario) -> Document {
         doc.para(tx("rel-sem_fatores"));
     } else {
         tabela(
-            &mut doc,
+            doc,
             tx("rel-fatores"),
             vec![
                 tx("fat-fluxo").into(),
@@ -444,16 +458,194 @@ pub fn documento(p: &Projeto, inv: &Inventario) -> Document {
             linhas,
         );
     }
-    if !inv.pendencias.is_empty() {
-        doc.heading(tx("fab-ainda_nao_contado"));
-        doc.bullets(
-            inv.pendencias
-                .iter()
-                .map(|x| fx(&format!("pend-{}", x.chave), &[("no", vx(&x.no))]))
-                .collect(),
-        );
+}
+
+/// O relatório do estudo de pegada de um produto (fase AM7): objetivo, unidade funcional,
+/// fronteira, inventário, impacto, interpretação, limitações e fatores.
+pub fn estudo(p: &Projeto, inv: &Inventario, v: &crate::produto::Vista) -> Option<Document> {
+    use crate::produto::{Fronteira, co2, denominador, por_unidade, tx_regra, tx_unidade};
+    let prod = inv.produtos.as_ref()?;
+    let pg = prod.pegadas.iter().find(|x| Some(x.tipo) == v.tipo)?;
+    let nome = if pg.nome == "*" {
+        tx("prd-sem_tipo").to_string()
+    } else {
+        pg.nome.clone()
+    };
+    let un = tx_unidade(v.unidade);
+    let den = denominador(pg, v.unidade);
+    let mut doc = Document::new(&fx("prd-rel_titulo", &[("produto", vx(&nome))]), &p.nome());
+    doc.app = crate::TITULO.into();
+    doc.toc = true;
+    doc.cover = Some(Cover {
+        app: crate::TITULO.into(),
+        title: doc.title.clone(),
+        subtitle: p.nome(),
+        author: String::new(),
+        date: hoje(),
+        source: fx(
+            "rel-origem",
+            &[
+                ("n", inv.replicacoes.into()),
+                ("semente", vx(&p.modelo.run.seed)),
+                ("de", vx(&p.lateral.environment.clock.hora(inv.janela.0))),
+                ("ate", vx(&p.lateral.environment.clock.hora(inv.janela.1))),
+            ],
+        ),
+        colour: crate::COR.into(),
+        icon_png: crate::ICONE.to_vec(),
+    });
+    doc.callout(Tone::Warn, tx("rel-aviso_titulo"), tx("prd-aviso"));
+    doc.heading(tx("prd-rel_objetivo"));
+    doc.para(&fx(
+        "prd-rel_objetivo_texto",
+        &[("produto", vx(&nome)), ("unidade", vx(&un))],
+    ));
+    doc.heading(tx("prd-rel_fronteira"));
+    let (fronteira, fora) = match v.fronteira {
+        Fronteira::PortaoAPortao => (
+            tx("prd-portao_a_portao"),
+            vec![
+                tx("prd-materias_primas").to_string(),
+                tx("prd-transporte").to_string(),
+                tx("prd-distribuicao").to_string(),
+                tx("prd-uso").to_string(),
+                tx("prd-fim_de_vida").to_string(),
+            ],
+        ),
+        Fronteira::BercoAoPortao => (
+            tx("prd-berco_ao_portao"),
+            vec![
+                tx("prd-transporte").to_string(),
+                tx("prd-distribuicao").to_string(),
+                tx("prd-uso").to_string(),
+                tx("prd-fim_de_vida").to_string(),
+            ],
+        ),
+    };
+    doc.para(&fx("prd-fronteira", &[("fronteira", vx(&fronteira))]));
+    doc.para(tx("prd-rel_fora"));
+    doc.bullets(fora);
+    doc.heading(tx("prd-rel_inventario"));
+    let linha = |chave: &str, vals: &[f64], u: &str| -> Option<(String, String)> {
+        por_unidade(vals, den).map(|i| {
+            (
+                fx(chave, &[("unidade", vx(&un))]),
+                format!("{} {u}", com_intervalo(&i)),
+            )
+        })
+    };
+    let mut pares: Vec<(String, String)> = Vec::new();
+    pares.extend(linha("prd-energia_por", &pg.kwh, tx("un-kwh")));
+    pares.extend(linha("prd-agua_por", &pg.agua_m3, tx("un-m3")));
+    pares.extend(linha("prd-mochila_por", &pg.mochila_kwh, tx("un-kwh")));
+    pares.push((
+        tx("prd-unidades").into(),
+        com_intervalo(&utsim_ambiental_core::Indicador::de(den)),
+    ));
+    doc.kv(pares);
+    doc.heading(tx("prd-rel_impacto"));
+    match co2(pg, v.fronteira) {
+        Ok(c) => {
+            if let Some(i) = por_unidade(&c, den) {
+                doc.para(&fx(
+                    "prd-rel_impacto_texto",
+                    &[("valor", vx(&com_intervalo(&i))), ("unidade", vx(&un))],
+                ));
+            }
+        }
+        Err(f) => {
+            doc.para(&fx(
+                "fab-falta_fator_dica",
+                &[("fluxos", vx(&f.join(", ")))],
+            ));
+        }
     }
-    doc
+    doc.heading(tx("prd-rel_interpretacao"));
+    let d = utsim_ambiental_core::Indicador::de(den).media.max(1e-12);
+    tabela(
+        &mut doc,
+        tx("prd-contribuicao"),
+        vec![
+            tx("maq-maquina").into(),
+            tx("prd-kwh_por_unidade").into(),
+            tx("prd-co2_por_unidade").into(),
+        ],
+        pg.por_no
+            .iter()
+            .map(|(no, k, c)| {
+                vec![
+                    no.clone(),
+                    num(k / d, casas(k / d)),
+                    c.map_or("–".into(), |c| num(c / d, casas(c / d))),
+                ]
+            })
+            .collect(),
+    );
+    // O efeito da regra de rateio: a mesma conta com cada regra.
+    let mut efeito = Vec::new();
+    for regra in [
+        utsim_ambiental_core::formato::Allocation::ByProcessTime,
+        utsim_ambiental_core::formato::Allocation::ByItems,
+        utsim_ambiental_core::formato::Allocation::ByMass,
+        utsim_ambiental_core::formato::Allocation::Structure,
+    ] {
+        let mut l = p.lateral.clone();
+        l.environment.allocation = regra;
+        let i2 = utsim_ambiental_core::avaliar(&p.modelo, &l, &p.rodadas, p.janela);
+        if let Some(x) = i2
+            .produtos
+            .as_ref()
+            .and_then(|x| x.pegadas.iter().find(|y| y.tipo == pg.tipo))
+            && let Some(k) = por_unidade(&x.kwh, denominador(x, v.unidade))
+        {
+            efeito.push(vec![tx_regra(regra).to_string(), com_intervalo(&k)]);
+        }
+    }
+    tabela(
+        &mut doc,
+        tx("prd-rel_regras"),
+        vec![
+            tx("prd-regra").into(),
+            fx("prd-energia_por", &[("unidade", vx(&un))]),
+        ],
+        efeito,
+    );
+    doc.para(tx("prd-rel_regras_texto"));
+    doc.heading(tx("prd-rel_limitacoes"));
+    doc.bullets(vec![
+        tx("prd-lim_1").into(),
+        tx("prd-lim_2").into(),
+        tx("prd-lim_3").into(),
+    ]);
+    secao_fatores(&mut doc, &p.lateral.environment);
+    Some(doc)
+}
+
+/// Grava o relatório do estudo de produto ao lado do modelo.
+pub fn gravar_estudo(
+    p: &Projeto,
+    inv: &Inventario,
+    v: &crate::produto::Vista,
+    pdf: bool,
+) -> Result<PathBuf, String> {
+    let doc = estudo(p, inv, v).ok_or("sem produto")?;
+    let t = modelo_de_pagina();
+    let base = p
+        .caminho
+        .file_stem()
+        .map_or_else(|| "modelo".into(), |s| s.to_string_lossy().into_owned());
+    let ext = if pdf { "pdf" } else { "html" };
+    let destino = p
+        .caminho
+        .with_file_name(format!("{base}.estudo_produto.{ext}"));
+    let gerado = hoje();
+    let bytes = if pdf {
+        utsim_ferramentas::relatorios::pdf::render(&doc, &t, &gerado)
+    } else {
+        utsim_ferramentas::relatorios::html::render(&doc, &t, &gerado).into_bytes()
+    };
+    std::fs::write(&destino, bytes).map_err(|e| e.to_string())?;
+    Ok(destino)
 }
 
 /// O modelo de página: a cor do app.
@@ -544,6 +736,19 @@ mod testes {
         let doc = documento(&p, &inv);
         let texto = doc.plain_text();
         assert!(texto.contains(tx("rel-aviso")));
+        // O estudo de produto também traz o aviso, a fronteira e os fatores.
+        let v = crate::produto::Vista {
+            tipo: inv
+                .produtos
+                .as_ref()
+                .and_then(|x| x.pegadas.first())
+                .map(|x| x.tipo),
+            ..Default::default()
+        };
+        let e = estudo(&p, &inv, &v).unwrap();
+        assert!(e.plain_text().contains(tx("prd-aviso")));
+        assert!(e.headings().contains(&tx("rel-fatores")));
+        assert!(e.headings().contains(&tx("prd-rel_limitacoes")));
         assert!(doc.headings().contains(&tx("rel-fatores")));
         assert!(texto.contains("eletricidade"));
         let h = gravar(&p, &inv, false).unwrap();

@@ -88,7 +88,8 @@ O que ainda não conta aparece na tela, na lista "Ainda não contado".
 | `waste_destinations` | `(name, diverted, kg_co2e, cost, source)`: o destino dos resíduos, com o fator (escopo 3) e o custo por kg |
 | `effluent` | `parameters: [(name, unit, limit, limit_source)]` e `destinations: [(name, removal, kwh_per_m3, sludge_kg_per_m3, cost_per_m3)]` |
 | `prices` | preço por unidade de cada fluxo |
-| `gases`, `allocation`, `targets` | das fases AM7 a AM9 |
+| `allocation` | a regra de rateio para o produto: `ByProcessTime` (padrão), `ByItems`, `ByMass` ou `None` (a espera fica como estrutura) |
+| `gases`, `targets` | das fases AM9 em diante |
 
 Fluxos de água ficam em `L` ou `m3`. Fluxos de resíduo ficam em kg e levam o `destination` do
 fluxo; a emissão deles é a do destino. A sucata e o lodo do tratamento entram nos resíduos

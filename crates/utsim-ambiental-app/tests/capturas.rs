@@ -131,6 +131,9 @@ fn fabrica_do_exemplo() {
         let img = cap.imagem(3, |ui| app.draw(ui));
         conferir(&img, nome);
     }
+    app.tela = Tela::Produto;
+    let img = cap.imagem(3, |ui| app.draw(ui));
+    conferir(&img, "ambiental_produto");
     app.tela = Tela::Fatores;
     let img = cap.imagem(3, |ui| app.draw(ui));
     conferir(&img, "ambiental_fatores");

@@ -100,6 +100,19 @@ no pico, o fator de carga e a conta de energia simulada da janela.
 - **Exportar SVG** grava o diagrama ao lado do modelo; **Exportar inventário (CSV)** grava
   todas as métricas com média e intervalo.
 
+## Produto (pegada)
+
+- Escolha o produto (o tipo de peça do modelo), a **unidade funcional** (peça boa ou kg de
+  produto) e a **fronteira**: clique em **Matérias-primas** para passar de "portão a portão"
+  (só a fabricação) a "berço ao portão" (com os materiais comprados).
+- O **rateio** diz como a energia de cada máquina se divide entre os produtos: pelo tempo na
+  máquina, pelo número de peças, pela massa, ou com a espera como **estrutura** (fora dos
+  produtos). A energia por peça vai sempre direto. Produtos + estrutura = fábrica.
+- A **contribuição por máquina** mostra de onde vem a pegada; a **taxa de refugo** mostra
+  quanto a pegada da peça boa cresce com mais refugo.
+- **Relatório do estudo** grava objetivo, unidade funcional, fronteira, inventário, impacto,
+  interpretação (com o efeito da regra de rateio), limitações e fatores com as fontes.
+
 ## Salvar
 
 **Salvar** grava o bloco ambiental num arquivo ao lado do modelo (`<modelo>.ambiental.ron`).
