@@ -108,6 +108,8 @@ pub fn pedido_analise(
     ped.ferramenta = Some("teste_t_pareado".into());
     ped.entrada.arquivos = vec![utsim_troca::Arquivo::de(csv).map_err(|e| e.to_string())?];
     ped.entrada.colunas = vec!["cenario".into(), "base".into()];
+    // A métrica vai no pedido: a Estatística não precisa tirá-la do nome do CSV.
+    ped.entrada.respostas = vec![metrica.into()];
     ped.contexto.modelo = Some(modelo.to_path_buf());
     ped.somente_leitura = true;
     let c = ped.gravar(&p).map_err(|e| e.to_string())?;
@@ -231,6 +233,7 @@ mod testes {
         .unwrap();
         assert!(c.is_file());
         assert_eq!(p.acao, acao::ANALISAR);
+        assert_eq!(p.entrada.respostas, vec!["ambiental.co2e_kg".to_string()]);
         assert!(p.conferir_entrada().is_ok());
         let lido = Pedido::ler(&c).unwrap();
         assert_eq!(

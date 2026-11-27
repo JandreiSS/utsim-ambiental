@@ -4,6 +4,15 @@ As mudanças deste repositório ficam registradas aqui.
 
 ## [Não lançado]
 
+## [am-0.3.1] - 2026-11-27
+
+### Novo
+- UTSim Ambiental, fase AM12: as métricas de cada nó (energia, energia sem produzir, fluxos e CO₂ equivalente) saem no relatório da simulação pela família 0.2.1, e o pacote de missões "Fábrica verde" do UTSim Ensino usa essas métricas.
+
+### Alterado
+- Usa a família pela tag v0.2.1.
+- O pedido `analisar` para a Estatística leva a métrica testada em `entrada.respostas` (docs/troca_ambiental.md), em vez de deixá-la só no nome do CSV.
+
 ## [am-0.3.0] - 2026-11-27
 
 ### Novo

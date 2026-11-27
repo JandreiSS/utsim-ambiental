@@ -13,16 +13,16 @@ repository = "https://github.com/JandreiSS/utsim-ambiental"
 [workspace.dependencies]
 utsim-ambiental-core = { path = "crates/utsim-ambiental-core" }
 
-utsim-core = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.0" }
-utsim-model = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.0" }
-utsim-pasta = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.0" }
-utsim-ui-tema = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.0" }
-utsim-ferramentas = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.0" }
-utsim-stats = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.0" }
-utsim-troca = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.0" }
-utsim-launcher-core = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.0" }
-utsim-edit = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.0" }
-utsim-idiomas = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.0" }
+utsim-core = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.1" }
+utsim-model = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.1" }
+utsim-pasta = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.1" }
+utsim-ui-tema = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.1" }
+utsim-ferramentas = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.1" }
+utsim-stats = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.1" }
+utsim-troca = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.1" }
+utsim-launcher-core = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.1" }
+utsim-edit = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.1" }
+utsim-idiomas = { git = "https://github.com/JandreiSS/utsim-familia", tag = "v0.2.1" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

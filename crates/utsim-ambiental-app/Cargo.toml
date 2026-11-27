@@ -2,7 +2,7 @@
 name = "utsim-ambiental-app"
 description = "UTSim Ambiental: energia, emissões e outros impactos da fábrica simulada, por máquina (janela nativa)"
 # Own version and tag (`am-v<version>`), apart from the other apps.
-version = "0.3.0"
+version = "0.3.1"
 edition.workspace = true
 # eframe 0.36 needs Rust 1.95.
 rust-version = "1.95"

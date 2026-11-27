@@ -20,13 +20,17 @@ teste da redução também é feito no próprio Ambiental.
   "ferramenta": "teste_t_pareado",
   "entrada": {
     "arquivos": [{ "caminho": ".../troca/Cenario_1_ambiental_co2e_kg.csv", "sha256": "…" }],
-    "colunas": ["cenario", "base"]
+    "colunas": ["cenario", "base"],
+    "respostas": ["ambiental.co2e_kg"]
   },
   "contexto": { "modelo": ".../linha.ron" },
   "resposta": ".../troca/<id>.utsim-resposta.json",
   "somente_leitura": true
 }
 ```
+
+`entrada.respostas` traz a métrica testada (desde o Ambiental 0.3.1), e a Estatística
+a usa em vez de tirá-la do nome do CSV.
 
 O CSV tem `;` como separador e ponto decimal, uma linha por replicação:
 `replicacao;base;cenario;diferenca`. As replicações são pareadas (mesma semente).
