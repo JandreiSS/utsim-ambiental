@@ -80,6 +80,24 @@ pub struct ResumoMateriais {
     pub erro_pct: Indicador,
     pub mochila_kwh: Indicador,
     pub mochila_co2e: Estimativa,
+    /// A mochila de cada peça refugada da primeira replicação, na janela (fase AM13: o
+    /// cartão da peça na cena 3D). A soma dá a mochila da replicação.
+    pub pecas: Vec<MochilaPeca>,
+}
+
+/// O que uma peça refugada levou consigo: a energia média por peça e os fluxos por peça
+/// de cada nó por onde passou.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MochilaPeca {
+    /// A peça (o `item` do rastro).
+    pub item: u64,
+    /// Os nós por onde passou (posição do objeto no modelo), na ordem.
+    pub caminho: Vec<usize>,
+    pub kwh: f64,
+    /// Quantidade de cada fluxo por peça somada no caminho.
+    pub fluxos: BTreeMap<String, f64>,
+    /// `Err`: os fatores que faltam.
+    pub co2e_kg: Result<f64, Vec<String>>,
 }
 
 /// O que a conta de energia passa para o balanço.
@@ -540,6 +558,52 @@ pub(crate) fn completar(e: &Entrada, fab: &mut Fabrica, inv: &mut Inventario) {
         }
         moch_falta.sort();
         moch_falta.dedup();
+        // A mochila de cada peça refugada da primeira replicação (mesma conta, peça a peça).
+        let mut pecas: Vec<MochilaPeca> = Vec::new();
+        if let Some(Some(m)) = e.mats.first() {
+            for (c, item) in m.caminhos_refugo.iter().zip(&m.itens_refugo) {
+                let mut kwh = 0.0;
+                let mut fl: BTreeMap<String, f64> = BTreeMap::new();
+                for i in c {
+                    let ent = e.entradas_no[0].get(*i).copied().unwrap_or(0.0);
+                    if ent > 0.0 {
+                        kwh += e.kwh_no[0][*i] / ent;
+                    }
+                    for (f, q) in &por_peca[*i] {
+                        *fl.entry(f.clone()).or_default() += q;
+                    }
+                }
+                let mut co2 = 0.0;
+                let mut falta: Vec<String> = Vec::new();
+                if kwh > 0.0 {
+                    match fator_eletrico {
+                        Some((k, _)) => co2 += kwh * k,
+                        None => {
+                            falta.push(eletrico.clone().unwrap_or_else(|| "eletricidade".into()))
+                        }
+                    }
+                }
+                for (f, q) in &fl {
+                    match fator_do_fluxo(l, f) {
+                        Ok((k, _)) => co2 += q * k,
+                        Err(x) => falta.push(x),
+                    }
+                }
+                falta.sort();
+                falta.dedup();
+                pecas.push(MochilaPeca {
+                    item: *item,
+                    caminho: c.clone(),
+                    kwh,
+                    fluxos: fl,
+                    co2e_kg: if falta.is_empty() {
+                        Ok(co2)
+                    } else {
+                        Err(falta)
+                    },
+                });
+            }
+        }
         let col = |f: &dyn Fn(&Materiais) -> f64| -> Vec<f64> {
             e.mats.iter().flatten().map(f).collect()
         };
@@ -578,6 +642,7 @@ pub(crate) fn completar(e: &Entrada, fab: &mut Fabrica, inv: &mut Inventario) {
             } else {
                 Estimativa::FaltaFator(moch_falta)
             },
+            pecas,
         });
     }
 

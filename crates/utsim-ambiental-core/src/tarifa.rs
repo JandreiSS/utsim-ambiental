@@ -71,8 +71,8 @@ fn integral(curva: &[(Time, f64)], x0: Time, x1: Time, hu: f64) -> f64 {
     e
 }
 
-/// O intervalo `(a, b)` é de pico?
-fn em_pico(t: &Tariff, relogio: &Clock, meio: Time) -> bool {
+/// O instante `meio` cai na janela de pico da tarifa?
+pub fn em_pico(t: &Tariff, relogio: &Clock, meio: Time) -> bool {
     let (Some(de), Some(ate)) = (hora(&t.peak.from), hora(&t.peak.to)) else {
         return false;
     };

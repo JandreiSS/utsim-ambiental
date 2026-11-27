@@ -45,6 +45,8 @@ pub struct Materiais {
     pub caminhos_refugo: Vec<Vec<usize>>,
     /// O tipo de cada peça refugada (0: sem tipo), na ordem de `caminhos_refugo`.
     pub tipos_refugo: Vec<u32>,
+    /// A peça (o `item` do rastro) de cada caminho de `caminhos_refugo`, na mesma ordem.
+    pub itens_refugo: Vec<u64>,
     /// kg que passaram de um nó para outro na janela, por par `(de, para)`.
     pub transferido: BTreeMap<(usize, usize), f64>,
     /// Por nó e por tipo de peça (0: sem tipo): o que entrou e o tempo que ficou.
@@ -234,6 +236,7 @@ pub fn medir(modelo: &Model, l: &Lateral, r: &Rodada, janela: (Time, Time)) -> O
                     }
                     m.caminhos_refugo.push(caminho);
                     m.tipos_refugo.push(tipo);
+                    m.itens_refugo.push(p.item);
                     *m.refugadas_por_tipo.entry(tipo).or_default() += 1.0;
                 } else {
                     m.boa_kg += massa_final;

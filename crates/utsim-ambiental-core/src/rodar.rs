@@ -86,29 +86,38 @@ impl Observer for Gravador {
     }
 }
 
+/// Roda uma replicação do modelo com rastro: a mesma de [`simular`] com o mesmo número
+/// (mesma semente), para quem mostra uma replicação só (a cena 3D).
+pub fn simular_uma(modelo: &Model, replicacao: u32) -> Result<Rodada, String> {
+    modelo.validate().map_err(|e| e.to_string())?;
+    uma(modelo, &modelo.nav_set(), replicacao)
+}
+
+fn uma(modelo: &Model, nav: &utsim_model::NavSet, r: u32) -> Result<Rodada, String> {
+    let rastro = Arc::new(Mutex::new(Rastro::default()));
+    let mut sim = modelo.build_with(r, nav);
+    sim.set_observer(Box::new(Gravador {
+        rastro: rastro.clone(),
+    }));
+    let relatorio = modelo.drive(&mut sim).map_err(|e| e.to_string())?;
+    drop(sim);
+    let rastro = Arc::try_unwrap(rastro)
+        .ok()
+        .and_then(|m| m.into_inner().ok())
+        .unwrap_or_default();
+    Ok(Rodada {
+        relatorio,
+        rastro: Some(rastro),
+    })
+}
+
 /// Roda as replicações do modelo com rastro, em paralelo (uma thread por replicação, no
 /// máximo o número de núcleos).
 pub fn simular(modelo: &Model) -> Result<Vec<Rodada>, String> {
     modelo.validate().map_err(|e| e.to_string())?;
     let n = modelo.run.replications.max(1);
     let nav = modelo.nav_set();
-    let uma = |r: u32| -> Result<Rodada, String> {
-        let rastro = Arc::new(Mutex::new(Rastro::default()));
-        let mut sim = modelo.build_with(r, &nav);
-        sim.set_observer(Box::new(Gravador {
-            rastro: rastro.clone(),
-        }));
-        let relatorio = modelo.drive(&mut sim).map_err(|e| e.to_string())?;
-        drop(sim);
-        let rastro = Arc::try_unwrap(rastro)
-            .ok()
-            .and_then(|m| m.into_inner().ok())
-            .unwrap_or_default();
-        Ok(Rodada {
-            relatorio,
-            rastro: Some(rastro),
-        })
-    };
+    let uma = |r: u32| uma(modelo, &nav, r);
     let nucleos = std::thread::available_parallelism().map_or(2, |x| x.get()) as u32;
     let mut saida: Vec<Option<Result<Rodada, String>>> = (0..n).map(|_| None).collect();
     for lote in (0..n).collect::<Vec<_>>().chunks(nucleos.max(1) as usize) {

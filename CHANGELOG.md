@@ -4,6 +4,9 @@ As mudanças deste repositório ficam registradas aqui.
 
 ## [Não lançado]
 
+### Novo
+- UTSim Ambiental, fase AM13 (núcleo): `camada3d` monta o que a cena 3D do UTSim desenha sobre uma replicação (potência da fábrica e de cada nó no instante, pela mesma curva de carga do app, energia de cada nó para o brilho no piso, janela de pico da tarifa e a mochila de cada peça refugada). `rodar::simular_uma` roda uma replicação só com rastro, igual à de mesmo número de `simular`.
+
 ## [am-0.3.1] - 2026-11-27
 
 ### Novo
